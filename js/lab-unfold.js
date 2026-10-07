@@ -10,6 +10,7 @@ class UnfoldLab {
     this.numberFormat = new Intl.NumberFormat('zh-CN', { maximumSignificantDigits: 12, useGrouping: false });
     this.dimL = 4; this.dimW = 3; this.dimH = 2;
     this.axisOrder = [0, 1, 2]; this.netRotation = 0; this.showFaceLabels = true;
+    this.previousAxisOrder = [...this.axisOrder]; this.axisReplayFrame = null;
     this.panX = 0; this.panY = 0; this.zoom = 1;
     this.foldProgress = 0; this.animating = false; this.animationTarget = 1;
     this.foldMode = 'steps'; this.stepSeconds = 2;
@@ -628,6 +629,7 @@ class UnfoldLab {
   }
 
   updateLesson() {
+    this.updateAxisIllustration();
     const { perimeter } = this.getMeasurements();
     this.updatePatternPerimeters();
     document.getElementById('perimeter-calc-result').textContent = `当前展开图周长：${this.formatNumber(perimeter)} ${this.lengthUnit}。六个面的周长总和，减去 5 条折痕长度的两倍；换底面不改变周长。`;
@@ -676,6 +678,41 @@ class UnfoldLab {
       const text = `周长 ${this.formatNumber(this.getMeasurements(pattern).perimeter)}${this.lengthUnit}`;
       button.querySelector('.net-pattern-perimeter').textContent = text;
       button.setAttribute('aria-label', `${pattern.name}，${text}`);
+    });
+  }
+
+  updateAxisIllustration(order = this.axisOrder) {
+    const positions = [[180, 226], [52, 145], [288, 30]];
+    const names = ['长', '宽', '高'], values = [this.dimL, this.dimW, this.dimH];
+    document.querySelectorAll('#unfold-axis-controls [data-axis-token]').forEach(token => {
+      const index = Number(token.dataset.axisToken), slot = order.indexOf(index);
+      const [x, y] = positions[slot];
+      token.style.transform = `translate(${x}px, ${y}px)`;
+      const label = `${names[index]} ${this.formatNumber(values[index])}${this.lengthUnit}`;
+      token.querySelector('text').textContent = label;
+      // Keep decimal and long unit labels inside their own moving badge.
+      const width = Math.max(94, label.length * 9 + 18);
+      const rect = token.querySelector('rect'); rect.setAttribute('x', -width / 2); rect.setAttribute('width', width);
+    });
+    const [horizontal, vertical, normal] = this.axisOrder;
+    document.getElementById('unfold-axis-explanation').textContent =
+      `A 面横边放“${names[horizontal]}”，竖边放“${names[vertical]}”；“${names[normal]}”沿垂直方向。A 面尺寸为 ${this.formatNumber(values[horizontal])} × ${this.formatNumber(values[vertical])}${this.lengthUnit}。`;
+  }
+
+  replayAxisIllustration() {
+    if (this.axisReplayFrame !== null) cancelAnimationFrame(this.axisReplayFrame);
+    const tokens = [...document.querySelectorAll('#unfold-axis-controls [data-axis-token]')];
+    tokens.forEach(token => token.classList.add('is-positioning'));
+    // Before the first selection, demonstrate a swap and return to the current configuration.
+    const from = this.previousAxisOrder.every((value, i) => value === this.axisOrder[i])
+      ? [this.axisOrder[1], this.axisOrder[0], this.axisOrder[2]] : this.previousAxisOrder;
+    this.updateAxisIllustration(from);
+    // Commit the starting pose before enabling transitions, so repeat playback always moves.
+    document.getElementById('unfold-axis-controls').getBoundingClientRect();
+    this.axisReplayFrame = requestAnimationFrame(() => {
+      this.axisReplayFrame = null;
+      tokens.forEach(token => token.classList.remove('is-positioning'));
+      this.updateAxisIllustration();
     });
   }
 
@@ -743,10 +780,14 @@ class UnfoldLab {
 
   initUI() {
     document.getElementById('unfold-axis-order').addEventListener('change', event => {
+      if (this.axisReplayFrame !== null) { cancelAnimationFrame(this.axisReplayFrame); this.axisReplayFrame = null; }
+      document.querySelectorAll('#unfold-axis-controls [data-axis-token]').forEach(token => token.classList.remove('is-positioning'));
+      this.previousAxisOrder = [...this.axisOrder];
       this.axisOrder = [...event.target.value].map(Number);
       this.measureFace = null; this.prediction = ''; this.showAnswers = false;
       this.resetModel(false, this.foldProgress);
     });
+    document.getElementById('btn-unfold-replay-axis').addEventListener('click', () => this.replayAxisIllustration());
     document.getElementById('btn-unfold-rotate-net').addEventListener('click', () => this.setNetRotation(this.netRotation - 90));
     document.getElementById('btn-unfold-reset-net-rotation').addEventListener('click', () => this.setNetRotation(0));
     document.getElementById('unfold-show-face-labels').addEventListener('change', event => {

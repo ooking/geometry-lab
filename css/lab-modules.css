@@ -660,3 +660,22 @@ button:disabled { opacity: 0.45; cursor: default; }
 #unfold-pattern-library .net-pattern-btn > span { white-space: nowrap; }
 #unfold-pattern-library .net-pattern-btn > svg { width: 80px; max-width: 100%; }
 #unfold-pattern-library .net-pattern-perimeter { color: var(--accent-emerald); font-size: 0.72rem; }
+
+/* Animated dimension badges show a change of direction without stretching the solid. */
+#unfold-axis-controls .unfold-speed-label { display: grid; }
+#unfold-axis-order { width: 100%; min-width: 0; }
+.unfold-axis-demo { margin-top: 0.75rem; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary); }
+.unfold-axis-demo svg { display: block; width: 100%; height: auto; overflow: visible; }
+.axis-demo-side { fill: #8b7352; stroke: #c6a775; stroke-width: 1.5; }
+.axis-demo-face { fill: #c6a775; stroke: #fbbf24; stroke-width: 2; }
+.axis-demo-face-name { fill: #48341d; font-size: 18px; font-weight: 600; text-anchor: middle; }
+.axis-demo-edge { fill: none; stroke: var(--text-muted); stroke-width: 2; stroke-dasharray: 4 3; }
+.axis-demo-slot { fill: var(--text-muted); font-size: 13px; text-anchor: middle; }
+.axis-demo-token { transition: transform 0.85s cubic-bezier(0.4, 0, 0.2, 1); }
+.axis-demo-token.is-positioning { transition: none; }
+.axis-demo-token rect { stroke-width: 1; }
+.axis-demo-token[data-axis-token="0"] rect { fill: #173b50; stroke: #38bdf8; }
+.axis-demo-token[data-axis-token="1"] rect { fill: #163d31; stroke: #34d399; }
+.axis-demo-token[data-axis-token="2"] rect { fill: #43301a; stroke: #fbbf24; }
+.axis-demo-token text { fill: var(--text-main); font-size: 15px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+@media (prefers-reduced-motion: reduce) { .axis-demo-token { transition: none; } }

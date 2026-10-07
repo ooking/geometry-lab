@@ -101,17 +101,35 @@
               <div class="dim-input-box"><label for="unfold-dim-h">高</label><input type="number" id="unfold-dim-h" value="2" min="0.5" max="100" step="any"></div>
             </div>
             <div id="unfold-axis-controls" hidden>
-              <label class="unfold-speed-label" for="unfold-axis-order">尺寸方向
+              <label class="unfold-speed-label" for="unfold-axis-order">长、宽、高怎么放
                 <select id="unfold-axis-order">
-                  <option value="012">长 · 宽 · 高</option>
-                  <option value="021">长 · 高 · 宽</option>
-                  <option value="102">宽 · 长 · 高</option>
-                  <option value="120">宽 · 高 · 长</option>
-                  <option value="201">高 · 长 · 宽</option>
-                  <option value="210">高 · 宽 · 长</option>
+                  <option value="012">A面：长×宽；垂直棱：高</option>
+                  <option value="021">A面：长×高；垂直棱：宽</option>
+                  <option value="102">A面：宽×长；垂直棱：高</option>
+                  <option value="120">A面：宽×高；垂直棱：长</option>
+                  <option value="201">A面：高×长；垂直棱：宽</option>
+                  <option value="210">A面：高×宽；垂直棱：长</option>
                 </select>
               </label>
-              <p class="learning-note">依次对应未旋转连接样式中 A 面的横边、竖边、垂直于 A 面的棱。只改变各面尺寸的分配，不交换上方长、宽、高输入值；换底面不改变该对应。</p>
+              <div class="unfold-axis-demo">
+                <svg viewBox="0 0 360 265" role="img" aria-labelledby="unfold-axis-demo-title unfold-axis-demo-description">
+                  <title id="unfold-axis-demo-title">长、宽、高在参考面周围的摆放方向</title>
+                  <desc id="unfold-axis-demo-description">切换选项，观察三个尺寸标记移动到 A 面横边、A 面竖边或垂直棱上。</desc>
+                  <path class="axis-demo-side" d="M110 100L170 60H310L250 100Z M250 100L310 60V150L250 190Z"/>
+                  <rect class="axis-demo-face" x="110" y="100" width="140" height="90"/>
+                  <text class="axis-demo-face-name" x="180" y="150">参考面 A</text>
+                  <path class="axis-demo-edge" d="M110 200H250 M100 100V190 M260 90L320 50"/>
+                  <g class="axis-demo-token" data-axis-token="0"><rect x="-47" y="-15" width="94" height="30" rx="8"/><text></text></g>
+                  <g class="axis-demo-token" data-axis-token="1"><rect x="-47" y="-15" width="94" height="30" rx="8"/><text></text></g>
+                  <g class="axis-demo-token" data-axis-token="2"><rect x="-47" y="-15" width="94" height="30" rx="8"/><text></text></g>
+                  <text class="axis-demo-slot" x="180" y="252">A 面横边</text>
+                  <text class="axis-demo-slot" x="52" y="179">A 面竖边</text>
+                  <text class="axis-demo-slot" x="288" y="57">垂直棱</text>
+                </svg>
+                <p class="learning-note" id="unfold-axis-explanation" aria-live="polite"></p>
+                <button type="button" class="btn-outline" id="btn-unfold-replay-axis">再看一次换位</button>
+              </div>
+              <p class="learning-note">先看 A 面的两条边，再看垂直于 A 面的棱。示意图只说明方向，实际比例看展开图。旋转二维图或换底面后，尺寸仍按这个参考面分配。</p>
             </div>
             <label class="unfold-speed-label" for="unfold-length-unit">长度单位
               <select id="unfold-length-unit"><option value="cm">厘米（cm）</option><option value="dm">分米（dm）</option><option value="m">米（m）</option></select>
