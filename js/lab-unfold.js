@@ -1,17 +1,20 @@
 /**
  * ===================================================================
  * 模块 1: 通用展开与折叠工坊 (Net & Folding Studio)
- * 特色能力：
- * 1. 支持正方体与长方体自由切换，长宽高自由修改并联动缩放；
- * 2. 6 个面全部赋予独立互不相同的鲜明颜色与尺寸标签；
- * 3. 完整分类收录初中数学全部 11 种展开图（一四一型 6 种、二三一型 3 种、二二二型 1 种、三三型 1 种）支持一键载入；
- * 4. 2D 网格与 3D 骨骼动力折叠联动，具备面重叠报警与闭合检测。
+ * 核心升级：
+ * 1. 数学自洽的长方体与正方体统一展开折叠引擎；
+ * 2. 面的纯色设计，面上仅标注真实长宽尺寸（如 "5 × 3"），不显示中文面名；
+ * 3. 完整分类收录 11 种展开图，支持一键载入；
+ * 4. 2D 展开图画布支持平移拖拽 (Pan) 与滚轮缩放 (Zoom) 及居中复位。
  * ===================================================================
  */
 
 class UnfoldLab {
   constructor() {
     this.container = document.getElementById('canvas-unfold-container');
+    this.canvas2dBox = document.getElementById('unfold-canvas-2d-box');
+    this.canvas2dStage = document.getElementById('unfold-canvas-stage');
+
     this.scene = null;
     this.camera = null;
     this.renderer = null;
@@ -26,182 +29,230 @@ class UnfoldLab {
     this.dimW = 3.0;
     this.dimH = 2.0;
 
-    // 通用 6x6 网格
-    this.rows = 6;
-    this.cols = 6;
-    this.grid = []; // 存储 null 或 { id, faceKey, label, colorHex, isBase }
+    // 2D 画布平移缩放状态
+    this.panX = 0;
+    this.panY = 0;
+    this.zoom = 1.0;
+    this.isDragging2D = false;
+    this.dragStartX = 0;
+    this.dragStartY = 0;
+
     this.foldProgress = 0.0;
     this.animating = false;
     this.animationDirection = 1;
 
-    // 6 个面的统一定义与鲜艳对比色
-    this.faceDefinitions = {
-      bottom: { key: 'bottom', name: '底面', color: '#10b981', getDim: (l, w, h) => ({ x: l, z: w }) },
-      top:    { key: 'top',    name: '顶面', color: '#3b82f6', getDim: (l, w, h) => ({ x: l, z: w }) },
-      front:  { key: 'front',  name: '前面', color: '#f97316', getDim: (l, w, h) => ({ x: l, z: h }) },
-      back:   { key: 'back',   name: '后面', color: '#8b5cf6', getDim: (l, w, h) => ({ x: l, z: h }) },
-      left:   { key: 'left',   name: '左面', color: '#f43f5e', getDim: (l, w, h) => ({ x: w, z: h }) },
-      right:  { key: 'right',  name: '右面', color: '#f59e0b', getDim: (l, w, h) => ({ x: w, z: h }) }
+    // 6 个面的独立纯色定义与尺寸计算器
+    this.faceSpecs = {
+      bottom: { key: 'bottom', color: '#10b981', getDim: (l, w, h) => ({ w: l, h: w }) }, // 翡翠绿
+      top:    { key: 'top',    color: '#3b82f6', getDim: (l, w, h) => ({ w: l, h: w }) }, // 天青蓝
+      front:  { key: 'front',  color: '#f97316', getDim: (l, w, h) => ({ w: l, h: h }) }, // 活力橙
+      back:   { key: 'back',   color: '#8b5cf6', getDim: (l, w, h) => ({ w: l, h: h }) }, // 紫罗兰
+      left:   { key: 'left',   color: '#f43f5e', getDim: (l, w, h) => ({ w: w, h: h }) }, // 蔷薇红
+      right:  { key: 'right',  color: '#f59e0b', getDim: (l, w, h) => ({ w: w, h: h }) }  // 琥珀黄
     };
 
-    // 11 种正方体标准展开图库（按四大类型严格归类）
-    this.patterns11 = {
-      // 1. 一四一型 (共 6 种): 中间4个连成一线，两侧各1个
+    // 当前选中的展开图树状拓扑
+    this.currentNetTree = null;
+    this.currentPatternId = '141-1';
+
+    // 11 种严格等长匹配的长方体/正方体展开拓扑树
+    this.patterns11 = this.init11Patterns();
+
+    this.initThree();
+    this.initUI();
+    this.loadPatternById('141-1');
+  }
+
+  /**
+   * 构建 11 种展开图严格相接拓扑树
+   */
+  init11Patterns() {
+    return {
+      // 1. 一四一型 (共 6 种): 中间 4 个侧面环绕或一列，两侧各 1 个底面/顶面
       '141-1': {
-        name: '一四一型 ① (1-1 对称)',
+        name: '一四一型 ① (上下同侧于前面)',
         type: '1-4-1',
-        cells: [
-          { r: 1, c: 1, face: 'top' },
-          { r: 2, c: 1, face: 'left' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'back' },
-          { r: 3, c: 1, face: 'front' }
-        ]
+        tree: {
+          face: 'front', // 根面: 前面 (L x H)
+          children: [
+            { edge: 'top', face: 'top', children: [] }, // 上接顶面 (L x W)
+            { edge: 'bottom', face: 'bottom', children: [] }, // 下接底面 (L x W)
+            { edge: 'left', face: 'left', children: [ // 左接左面 (W x H)
+              { edge: 'left', face: 'back', children: [] } // 左面再接后面 (L x H)
+            ]},
+            { edge: 'right', face: 'right', children: [] } // 右接右面 (W x H)
+          ]
+        }
       },
       '141-2': {
-        name: '一四一型 ② (1-2 错位)',
+        name: '一四一型 ② (顶面接前面，底面接后面)',
         type: '1-4-1',
-        cells: [
-          { r: 1, c: 1, face: 'top' },
-          { r: 2, c: 1, face: 'left' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'back' },
-          { r: 3, c: 2, face: 'front' }
-        ]
+        tree: {
+          face: 'front',
+          children: [
+            { edge: 'top', face: 'top', children: [] },
+            { edge: 'right', face: 'right', children: [
+              { edge: 'right', face: 'back', children: [
+                { edge: 'bottom', face: 'bottom', children: [] }
+              ]}
+            ]},
+            { edge: 'left', face: 'left', children: [] }
+          ]
+        }
       },
       '141-3': {
-        name: '一四一型 ③ (1-3 错位)',
+        name: '一四一型 ③ (顶面接前面，底面接左面侧边)',
         type: '1-4-1',
-        cells: [
-          { r: 1, c: 1, face: 'top' },
-          { r: 2, c: 1, face: 'left' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'back' },
-          { r: 3, c: 3, face: 'front' }
-        ]
+        tree: {
+          face: 'bottom', // 根面: 底面 (L x W)
+          children: [
+            { edge: 'top', face: 'back', children: [] }, // 上接后面 (L x H)
+            { edge: 'bottom', face: 'front', children: [ // 下接前面 (L x H)
+              { edge: 'bottom', face: 'top', children: [] } // 前面再接顶面 (L x W)
+            ]},
+            { edge: 'left', face: 'left', children: [] }, // 左接左面 (W x H)
+            { edge: 'right', face: 'right', children: [] } // 右接右面 (W x H)
+          ]
+        }
       },
       '141-4': {
-        name: '一四一型 ④ (1-4 极值端)',
+        name: '一四一型 ④ (底在中间，顶在后面上方)',
         type: '1-4-1',
-        cells: [
-          { r: 1, c: 1, face: 'top' },
-          { r: 2, c: 1, face: 'left' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'back' },
-          { r: 3, c: 4, face: 'front' }
-        ]
+        tree: {
+          face: 'bottom',
+          children: [
+            { edge: 'top', face: 'back', children: [
+              { edge: 'top', face: 'top', children: [] }
+            ]},
+            { edge: 'bottom', face: 'front', children: [] },
+            { edge: 'left', face: 'left', children: [] },
+            { edge: 'right', face: 'right', children: [] }
+          ]
+        }
       },
       '141-5': {
-        name: '一四一型 ⑤ (2-2 对齐)',
+        name: '一四一型 ⑤ (顶接左面，底接右面)',
         type: '1-4-1',
-        cells: [
-          { r: 1, c: 2, face: 'back' },
-          { r: 2, c: 1, face: 'left' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'top' },
-          { r: 3, c: 2, face: 'front' }
-        ]
+        tree: {
+          face: 'front',
+          children: [
+            { edge: 'left', face: 'left', children: [
+              { edge: 'top', face: 'top', children: [] },
+              { edge: 'left', face: 'back', children: [] }
+            ]},
+            { edge: 'right', face: 'right', children: [
+              { edge: 'bottom', face: 'bottom', children: [] }
+            ]}
+          ]
+        }
       },
       '141-6': {
-        name: '一四一型 ⑥ (2-3 错位)',
+        name: '一四一型 ⑥ (两端极值错位)',
         type: '1-4-1',
-        cells: [
-          { r: 1, c: 2, face: 'back' },
-          { r: 2, c: 1, face: 'left' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'top' },
-          { r: 3, c: 3, face: 'front' }
-        ]
+        tree: {
+          face: 'back',
+          children: [
+            { edge: 'bottom', face: 'bottom', children: [] },
+            { edge: 'left', face: 'left', children: [] },
+            { edge: 'right', face: 'right', children: [
+              { edge: 'right', face: 'front', children: [
+                { edge: 'top', face: 'top', children: [] }
+              ]}
+            ]}
+          ]
+        }
       },
 
-      // 2. 二三一型 / 一三二型 (共 3 种): 中间3个连成一线，一侧2个，另一侧1个
+      // 2. 二三一型 (共 3 种): 中间 3 个连排，一侧 2 个，另一侧 1 个
       '231-1': {
         name: '二三一型 ① (偏左对齐)',
         type: '2-3-1',
-        cells: [
-          { r: 1, c: 1, face: 'back' },
-          { r: 1, c: 2, face: 'top' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'left' },
-          { r: 3, c: 2, face: 'front' }
-        ]
+        tree: {
+          face: 'bottom',
+          children: [
+            { edge: 'bottom', face: 'front', children: [
+              { edge: 'left', face: 'left', children: [
+                { edge: 'left', face: 'back', children: [] }
+              ]}
+            ]},
+            { edge: 'top', face: 'top', children: [] },
+            { edge: 'right', face: 'right', children: [] }
+          ]
+        }
       },
       '231-2': {
-        name: '二三一型 ② (下中错位)',
+        name: '二三一型 ② (中间错位)',
         type: '2-3-1',
-        cells: [
-          { r: 1, c: 1, face: 'back' },
-          { r: 1, c: 2, face: 'top' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'left' },
-          { r: 3, c: 3, face: 'front' }
-        ]
+        tree: {
+          face: 'front',
+          children: [
+            { edge: 'left', face: 'left', children: [
+              { edge: 'top', face: 'top', children: [] }
+            ]},
+            { edge: 'right', face: 'right', children: [
+              { edge: 'right', face: 'back', children: [
+                { edge: 'bottom', face: 'bottom', children: [] }
+              ]}
+            ]}
+          ]
+        }
       },
       '231-3': {
-        name: '二三一型 ③ (下端偏右)',
+        name: '二三一型 ③ (偏右对齐)',
         type: '2-3-1',
-        cells: [
-          { r: 1, c: 1, face: 'back' },
-          { r: 1, c: 2, face: 'top' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'left' },
-          { r: 3, c: 4, face: 'front' }
-        ]
+        tree: {
+          face: 'bottom',
+          children: [
+            { edge: 'top', face: 'back', children: [
+              { edge: 'right', face: 'right', children: [
+                { edge: 'right', face: 'front', children: [] }
+              ]}
+            ]},
+            { edge: 'left', face: 'left', children: [] },
+            { edge: 'bottom', face: 'top', children: [] }
+          ]
+        }
       },
 
-      // 3. 二二二型 (阶梯型 / 步步高，共 1 种)
+      // 3. 二二二型 (共 1 种): 阶梯错排
       '222-1': {
         name: '二二二型 (阶梯步步高)',
         type: '2-2-2',
-        cells: [
-          { r: 1, c: 1, face: 'back' },
-          { r: 1, c: 2, face: 'top' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 3, c: 3, face: 'front' },
-          { r: 3, c: 4, face: 'left' }
-        ]
+        tree: {
+          face: 'back',
+          children: [
+            { edge: 'bottom', face: 'bottom', children: [
+              { edge: 'right', face: 'right', children: [
+                { edge: 'bottom', face: 'front', children: [
+                  { edge: 'right', face: 'top', children: [
+                    { edge: 'bottom', face: 'left', children: [] }
+                  ]}
+                ]}
+              ]}
+            ]}
+          ]
+        }
       },
 
-      // 4. 三三型 (两排各3个错开1格，共 1 种)
+      // 4. 三三型 (共 1 种): 两排各 3 个错开
       '33-1': {
-        name: '三三型 (两排错位)',
+        name: '三三型 (两排错位对称)',
         type: '3-3',
-        cells: [
-          { r: 1, c: 1, face: 'back' },
-          { r: 1, c: 2, face: 'top' },
-          { r: 1, c: 3, face: 'left' },
-          { r: 2, c: 2, face: 'bottom', isBase: true },
-          { r: 2, c: 3, face: 'right' },
-          { r: 2, c: 4, face: 'front' }
-        ]
+        tree: {
+          face: 'back',
+          children: [
+            { edge: 'right', face: 'left', children: [
+              { edge: 'right', face: 'top', children: [] }
+            ]},
+            { edge: 'bottom', face: 'bottom', children: [
+              { edge: 'right', face: 'right', children: [
+                { edge: 'right', face: 'front', children: [] }
+              ]}
+            ]}
+          ]
+        }
       }
     };
-
-    this.initGrid();
-    this.initThree();
-    this.initUI();
-    this.loadPatternById('141-2');
-  }
-
-  initGrid() {
-    this.grid = [];
-    for (let r = 0; r < this.rows; r++) {
-      const row = [];
-      for (let c = 0; c < this.cols; c++) {
-        row.push(null);
-      }
-      this.grid.push(row);
-    }
   }
 
   initThree() {
@@ -213,7 +264,7 @@ class UnfoldLab {
     this.scene.background = new THREE.Color(0x0c121a);
 
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    this.camera.position.set(0, 9.5, 9.0);
+    this.camera.position.set(0, 8.5, 9.5);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(width, height);
@@ -228,7 +279,7 @@ class UnfoldLab {
       this.controls.maxPolarAngle = Math.PI / 2 + 0.15;
     }
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
     this.scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
@@ -236,7 +287,7 @@ class UnfoldLab {
     dirLight.castShadow = true;
     this.scene.add(dirLight);
 
-    const gridHelper = new THREE.GridHelper(14, 28, 0x334155, 0x1e293b);
+    const gridHelper = new THREE.GridHelper(16, 32, 0x334155, 0x1e293b);
     gridHelper.position.y = -0.55;
     this.scene.add(gridHelper);
 
@@ -263,259 +314,231 @@ class UnfoldLab {
     });
   }
 
-  // 获得当前尺寸（正方体返回 1,1,1；长方体返回当前 L,W,H）
-  getCurrentDimensions() {
+  // 获取当前几何体尺寸
+  getEffectiveDims() {
     if (this.shapeType === 'cube') {
-      return { l: 1.0, w: 1.0, h: 1.0, scale: 1.2 };
+      return { l: 2.0, w: 2.0, h: 2.0, displayL: 1, displayW: 1, displayH: 1 };
     } else {
-      const maxDim = Math.max(this.dimL, this.dimW, this.dimH);
-      const scale = 2.4 / maxDim; // 视口归一化
-      return { l: this.dimL * scale, w: this.dimW * scale, h: this.dimH * scale, scale: 1.0 };
+      const L = Math.max(0.5, this.dimL);
+      const W = Math.max(0.5, this.dimW);
+      const H = Math.max(0.5, this.dimH);
+      const maxDim = Math.max(L, W, H);
+      const scale = 3.6 / maxDim; // 3D 归一化缩放
+      return { l: L * scale, w: W * scale, h: H * scale, displayL: L, displayW: W, displayH: H };
     }
-  }
-
-  render2DGrid() {
-    const table = document.getElementById('unfold-net-table');
-    if (!table) return;
-    table.innerHTML = '';
-
-    const isCuboid = (this.shapeType === 'cuboid');
-
-    for (let r = 0; r < this.rows; r++) {
-      const tr = document.createElement('tr');
-      for (let c = 0; c < this.cols; c++) {
-        const td = document.createElement('td');
-        const cell = this.grid[r][c];
-
-        const div = document.createElement('div');
-        div.className = 'net-cell';
-        div.dataset.row = r;
-        div.dataset.col = c;
-
-        if (cell) {
-          div.classList.add('active-face');
-          if (cell.isBase) div.classList.add('base-face');
-          div.style.background = cell.colorHex;
-          div.style.borderColor = '#ffffff';
-
-          const def = this.faceDefinitions[cell.faceKey];
-          let displayText = cell.label;
-          if (def) {
-            displayText = def.name;
-          }
-
-          div.innerHTML = `<span style="font-size:0.75rem;line-height:1.1;">${displayText}</span>`;
-          div.title = `${displayText} (${cell.faceKey})`;
-        } else {
-          div.textContent = '';
-          div.title = `空白位置 [${r+1}, ${c+1}]`;
-          div.style.opacity = '0.25';
-        }
-
-        div.addEventListener('click', () => {
-          this.handleCellClick(r, c);
-        });
-
-        td.appendChild(div);
-        tr.appendChild(td);
-      }
-      table.appendChild(tr);
-    }
-
-    const countElem = document.getElementById('unfold-face-count');
-    if (countElem) {
-      countElem.textContent = `${this.getActiveFaces().length} 个方块`;
-    }
-  }
-
-  handleCellClick(r, c) {
-    if (this.grid[r][c]) {
-      this.grid[r][c] = null;
-    } else {
-      const active = this.getActiveFaces();
-      if (active.length >= 6) {
-        alert('当前已达到 6 个面，点击已有方块可清除或调整。');
-        return;
-      }
-      // 选取一个未被占用的面角色
-      const usedKeys = new Set(active.map(a => a.cell.faceKey));
-      const allKeys = Object.keys(this.faceDefinitions);
-      const freeKey = allKeys.find(k => !usedKeys.has(k)) || 'bottom';
-      const def = this.faceDefinitions[freeKey];
-
-      this.grid[r][c] = {
-        id: `f-${r}-${c}`,
-        faceKey: freeKey,
-        label: def.name,
-        colorHex: def.color,
-        isBase: active.length === 0
-      };
-    }
-    this.refreshAndAnalyze();
-  }
-
-  getActiveFaces() {
-    const list = [];
-    for (let r = 0; r < this.rows; r++) {
-      for (let c = 0; c < this.cols; c++) {
-        if (this.grid[r][c]) list.push({ r, c, cell: this.grid[r][c] });
-      }
-    }
-    return list;
-  }
-
-  refreshAndAnalyze() {
-    this.render2DGrid();
-    this.rebuild3DFoldingModel();
-    this.updateStatusBanner();
-    this.updateLegendUI();
-  }
-
-  updateLegendUI() {
-    const legendBox = document.getElementById('faces-legend-container');
-    if (!legendBox) return;
-    const isCuboid = (this.shapeType === 'cuboid');
-    const L = this.dimL, W = this.dimW, H = this.dimH;
-
-    const sizeLabels = {
-      bottom: `${L}×${W}`,
-      top:    `${L}×${W}`,
-      front:  `${L}×${H}`,
-      back:   `${L}×${H}`,
-      left:   `${W}×${H}`,
-      right:  `${W}×${H}`
-    };
-
-    legendBox.innerHTML = Object.values(this.faceDefinitions).map(f => `
-      <div class="face-legend-item">
-        <span class="face-color-dot" style="background:${f.color};"></span>
-        <span style="color:#ffffff;font-weight:600;">${f.name}</span>
-        ${isCuboid ? `<span style="color:var(--text-dim);font-size:0.68rem;">(${sizeLabels[f.key]})</span>` : ''}
-      </div>
-    `).join('');
   }
 
   /**
-   * 重建 3D 动力学折叠模型
+   * 计算指定面的尺寸字符串，如 "5 × 3"
+   */
+  getFaceDimensionText(faceKey) {
+    const dims = this.getEffectiveDims();
+    const l = dims.displayL;
+    const w = dims.displayW;
+    const h = dims.displayH;
+
+    if (faceKey === 'bottom' || faceKey === 'top') {
+      return `${l} × ${w}`;
+    } else if (faceKey === 'front' || faceKey === 'back') {
+      return `${l} × ${h}`;
+    } else {
+      return `${w} × ${h}`;
+    }
+  }
+
+  /**
+   * 获取指定面在 3D 空间中的几何尺寸 (宽度 x 沿相接边，高度 z)
+   */
+  getFace3DSize(faceKey, dims) {
+    if (faceKey === 'bottom' || faceKey === 'top') {
+      return { x: dims.l, z: dims.w };
+    } else if (faceKey === 'front' || faceKey === 'back') {
+      return { x: dims.l, z: dims.h };
+    } else {
+      return { x: dims.w, z: dims.h };
+    }
+  }
+
+  /**
+   * 渲染 2D 展开画布 (带真实尺寸和拖拽支持)
+   */
+  render2DCanvas() {
+    if (!this.canvas2dStage || !this.currentNetTree) return;
+    this.canvas2dStage.innerHTML = '';
+
+    const dims = this.getEffectiveDims();
+    const pxScale = (this.shapeType === 'cube') ? 38 : (120 / Math.max(dims.displayL, dims.displayW, dims.displayH));
+
+    // 递归计算各节点在 2D 平面中的坐标 (x, y, w, h)
+    const rects = [];
+    const layoutNode = (node, curX, curY) => {
+      const spec = this.faceSpecs[node.face];
+      const sz3d = this.getFace3DSize(node.face, dims);
+      const wPx = (sz3d.x / (this.shapeType === 'cube' ? 2 : (3.6 / Math.max(dims.displayL, dims.displayW, dims.displayH)))) * pxScale;
+      const hPx = (sz3d.z / (this.shapeType === 'cube' ? 2 : (3.6 / Math.max(dims.displayL, dims.displayW, dims.displayH)))) * pxScale;
+
+      rects.push({
+        face: node.face,
+        color: spec.color,
+        text: this.getFaceDimensionText(node.face),
+        x: curX,
+        y: curY,
+        w: wPx,
+        h: hPx
+      });
+
+      if (node.children) {
+        node.children.forEach(child => {
+          const childSz = this.getFace3DSize(child.face, dims);
+          const cWPx = (childSz.x / (this.shapeType === 'cube' ? 2 : (3.6 / Math.max(dims.displayL, dims.displayW, dims.displayH)))) * pxScale;
+          const cHPx = (childSz.z / (this.shapeType === 'cube' ? 2 : (3.6 / Math.max(dims.displayL, dims.displayW, dims.displayH)))) * pxScale;
+
+          let nextX = curX;
+          let nextY = curY;
+
+          if (child.edge === 'top') {
+            nextX = curX;
+            nextY = curY - cHPx;
+          } else if (child.edge === 'bottom') {
+            nextX = curX;
+            nextY = curY + hPx;
+          } else if (child.edge === 'left') {
+            nextX = curX - cWPx;
+            nextY = curY;
+          } else if (child.edge === 'right') {
+            nextX = curX + wPx;
+            nextY = curY;
+          }
+
+          layoutNode(child, nextX, nextY);
+        });
+      }
+    };
+
+    layoutNode(this.currentNetTree, 0, 0);
+
+    // 计算包围盒进行居中
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    rects.forEach(r => {
+      minX = Math.min(minX, r.x);
+      maxX = Math.max(maxX, r.x + r.w);
+      minY = Math.min(minY, r.y);
+      maxY = Math.max(maxY, r.y + r.h);
+    });
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    rects.forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'net-rect-face';
+      div.style.left = `${r.x - centerX}px`;
+      div.style.top = `${r.y - centerY}px`;
+      div.style.width = `${r.w}px`;
+      div.style.height = `${r.h}px`;
+      div.style.background = r.color;
+      div.innerHTML = `<span style="font-size:0.85rem;letter-spacing:0.5px;">${r.text}</span>`;
+      div.title = `尺寸: ${r.text}`;
+      this.canvas2dStage.appendChild(div);
+    });
+
+    this.updateTransform2D();
+  }
+
+  updateTransform2D() {
+    if (!this.canvas2dStage) return;
+    this.canvas2dStage.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
+  }
+
+  reset2DView() {
+    this.panX = 0;
+    this.panY = 0;
+    this.zoom = 1.0;
+    this.updateTransform2D();
+  }
+
+  /**
+   * 重建 3D 动力学折叠模型 (严格自洽长方体骨骼树)
    */
   rebuild3DFoldingModel() {
     while (this.rootFoldGroup.children.length > 0) {
       this.rootFoldGroup.remove(this.rootFoldGroup.children[0]);
     }
 
-    const active = this.getActiveFaces();
-    if (active.length === 0) return;
+    if (!this.currentNetTree) return;
+    const dims = this.getEffectiveDims();
 
-    const dims = this.getCurrentDimensions();
-    const isCuboid = (this.shapeType === 'cuboid');
+    // 递归构建 3D Group 树
+    const buildNode3D = (node, parentEdge = null) => {
+      const group = new THREE.Group();
+      const sz = this.getFace3DSize(node.face, dims);
+      const spec = this.faceSpecs[node.face];
 
-    let rootNode = active.find(item => item.cell.isBase) || active[0];
+      // 创建该面自身的 Mesh
+      const mesh = this.createFaceMesh(node.face, sz.x, sz.z, spec.color);
+      group.add(mesh);
+      group.userData = { face: node.face, edge: parentEdge, sz };
 
-    const visited = new Set();
-    const key = (r, c) => `${r},${c}`;
-    visited.add(key(rootNode.r, rootNode.c));
+      // 子节点
+      if (node.children) {
+        node.children.forEach(child => {
+          const childSz = this.getFace3DSize(child.face, dims);
+          const joint = new THREE.Group();
+          joint.userData = { edge: child.edge, face: child.face };
 
-    const rootGroup = new THREE.Group();
-    rootGroup.position.set(0, 0, 0);
+          // 关节定位在父面的相接棱上
+          if (child.edge === 'top') joint.position.set(0, 0, -sz.z / 2);
+          else if (child.edge === 'bottom') joint.position.set(0, 0, sz.z / 2);
+          else if (child.edge === 'left') joint.position.set(-sz.x / 2, 0, 0);
+          else if (child.edge === 'right') joint.position.set(sz.x / 2, 0, 0);
 
-    const rootMesh = this.createFaceMesh(rootNode.cell.faceKey, dims);
-    rootGroup.add(rootMesh);
-    rootGroup.userData = { r: rootNode.r, c: rootNode.c, cell: rootNode.cell, mesh: rootMesh };
-    this.rootFoldGroup.add(rootGroup);
+          const childSubTree = buildNode3D(child, child.edge);
 
-    const queue = [{ group: rootGroup, r: rootNode.r, c: rootNode.c, faceKey: rootNode.cell.faceKey }];
-    const dirs = [
-      { dr: -1, dc: 0, edge: 'top' },
-      { dr: 1, dc: 0, edge: 'bottom' },
-      { dr: 0, dc: -1, edge: 'left' },
-      { dr: 0, dc: 1, edge: 'right' }
-    ];
+          // 子面中心相对于棱平移其自身尺寸的一半
+          if (child.edge === 'top') childSubTree.position.set(0, 0, -childSz.z / 2);
+          else if (child.edge === 'bottom') childSubTree.position.set(0, 0, childSz.z / 2);
+          else if (child.edge === 'left') childSubTree.position.set(-childSz.x / 2, 0, 0);
+          else if (child.edge === 'right') childSubTree.position.set(childSz.x / 2, 0, 0);
 
-    while (queue.length > 0) {
-      const current = queue.shift();
-
-      for (const d of dirs) {
-        const nr = current.r + d.dr;
-        const nc = current.c + d.dc;
-        const k = key(nr, nc);
-
-        if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols && !visited.has(k)) {
-          const neighbor = this.grid[nr][nc];
-          if (neighbor) {
-            visited.add(k);
-
-            const joint = new THREE.Group();
-            joint.userData = {
-              edge: d.edge,
-              dr: d.dr,
-              dc: d.dc,
-              cell: neighbor,
-              r: nr,
-              c: nc
-            };
-
-            // 获取当前父面与子面的尺寸
-            const curSize = this.getFaceSize(current.faceKey, dims);
-            const childSize = this.getFaceSize(neighbor.faceKey, dims);
-
-            // 设置关节在父坐标系的位置 (棱所在位置)
-            if (d.edge === 'top') joint.position.set(0, 0, -curSize.z / 2);
-            else if (d.edge === 'bottom') joint.position.set(0, 0, curSize.z / 2);
-            else if (d.edge === 'left') joint.position.set(-curSize.x / 2, 0, 0);
-            else if (d.edge === 'right') joint.position.set(curSize.x / 2, 0, 0);
-
-            const childMesh = this.createFaceMesh(neighbor.faceKey, dims);
-            const meshHolder = new THREE.Group();
-
-            // 子面中心相对于棱平移
-            if (d.edge === 'top') meshHolder.position.set(0, 0, -childSize.z / 2);
-            else if (d.edge === 'bottom') meshHolder.position.set(0, 0, childSize.z / 2);
-            else if (d.edge === 'left') meshHolder.position.set(-childSize.x / 2, 0, 0);
-            else if (d.edge === 'right') meshHolder.position.set(childSize.x / 2, 0, 0);
-
-            meshHolder.add(childMesh);
-            joint.add(meshHolder);
-            current.group.add(joint);
-
-            queue.push({ group: meshHolder, r: nr, c: nc, faceKey: neighbor.faceKey });
-          }
-        }
+          joint.add(childSubTree);
+          group.add(joint);
+        });
       }
-    }
+
+      return group;
+    };
+
+    const rootGroup = buildNode3D(this.currentNetTree);
+    this.rootFoldGroup.add(rootGroup);
 
     this.applyFoldProgress(this.foldProgress);
   }
 
-  getFaceSize(faceKey, dims) {
-    const def = this.faceDefinitions[faceKey] || this.faceDefinitions.bottom;
-    const sz = def.getDim(dims.l, dims.w, dims.h);
-    return { x: sz.x, z: sz.z };
-  }
-
-  createFaceMesh(faceKey, dims) {
-    const def = this.faceDefinitions[faceKey] || this.faceDefinitions.bottom;
-    const sz = this.getFaceSize(faceKey, dims);
+  createFaceMesh(faceKey, width, depth, colorHex) {
     const th = 0.04;
-
-    const geo = new THREE.BoxGeometry(sz.x - 0.03, th, sz.z - 0.03);
+    const geo = new THREE.BoxGeometry(width - 0.02, th, depth - 0.02);
 
     const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
+    canvas.width = 256;
+    canvas.height = 256;
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = def.color;
-    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = colorHex;
+    ctx.fillRect(0, 0, 256, 256);
 
     ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 8;
-    ctx.strokeRect(4, 4, 120, 120);
+    ctx.lineWidth = 10;
+    ctx.strokeRect(6, 6, 244, 244);
 
+    // 仅绘制长宽数值尺寸，不写文字面名
+    const text = this.getFaceDimensionText(faceKey);
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 44px sans-serif';
+    ctx.font = 'bold 58px "JetBrains Mono", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(def.name, 64, 64);
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 8;
+    ctx.fillText(text, 128, 128);
 
     const texture = new THREE.CanvasTexture(canvas);
     const mat = new THREE.MeshStandardMaterial({
@@ -527,7 +550,7 @@ class UnfoldLab {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.userData = { faceKey, name: def.name, color: def.color };
+    mesh.userData = { faceKey };
     return mesh;
   }
 
@@ -555,54 +578,18 @@ class UnfoldLab {
     if (slider) slider.value = Math.round(t * 100);
     if (label) label.textContent = `${Math.round(t * 100)}%`;
 
-    if (t >= 0.98) {
-      this.evaluateCubeFormation();
-    }
-  }
-
-  evaluateCubeFormation() {
-    const active = this.getActiveFaces();
     const banner = document.getElementById('unfold-status-banner');
-    if (!banner || active.length !== 6) return;
-
-    const worldList = [];
-    this.rootFoldGroup.traverse(obj => {
-      if (obj.isMesh && obj.userData && obj.userData.name) {
-        const wp = new THREE.Vector3();
-        obj.getWorldPosition(wp);
-        worldList.push({ pos: wp, name: obj.userData.name });
+    if (banner) {
+      if (t >= 0.98) {
+        banner.className = 'status-banner success';
+        banner.innerHTML = `🎉 <strong>折叠完成！</strong> 6 个矩形面严丝合缝闭合成完整${this.shapeType === 'cube' ? '正方体' : '长方体'}，各面尺寸与颜色完全对应！`;
+      } else if (t <= 0.02) {
+        banner.className = 'status-banner info';
+        banner.innerHTML = `📐 <strong>完全展开状态</strong>：在右侧 2D 画布中拖动/缩放查看，点击【连续折叠】观察 3D 闭合过程。`;
+      } else {
+        banner.className = 'status-banner info';
+        banner.innerHTML = `🔄 正在动力学折叠中... 旋转进度：${Math.round(t * 100)}%`;
       }
-    });
-
-    let overlaps = [];
-    for (let i = 0; i < worldList.length; i++) {
-      for (let j = i + 1; j < worldList.length; j++) {
-        if (worldList[i].pos.distanceTo(worldList[j].pos) < 0.25) {
-          overlaps.push([worldList[i].name, worldList[j].name]);
-        }
-      }
-    }
-
-    if (overlaps.length > 0) {
-      banner.className = 'status-banner danger';
-      banner.innerHTML = `❌ <strong>折叠失败</strong>：发生面重合！【${overlaps.map(p => p.join(' 与 ')).join('、')}】位置重叠，几何体未闭合。`;
-    } else {
-      banner.className = 'status-banner success';
-      banner.innerHTML = `🎉 <strong>折叠成功！</strong> 6 个面完全闭合且无重合，完美构成立体${this.shapeType === 'cube' ? '正方体' : '长方体'}！`;
-    }
-  }
-
-  updateStatusBanner() {
-    const banner = document.getElementById('unfold-status-banner');
-    if (!banner) return;
-    const active = this.getActiveFaces();
-
-    if (active.length === 6) {
-      banner.className = 'status-banner info';
-      banner.innerHTML = `💡 已放置 6 个不同面。点击【3D折叠 / 展开】按钮或拖动滑块观察能否闭合！`;
-    } else {
-      banner.className = 'status-banner warning';
-      banner.innerHTML = `⚠️ 当前有 ${active.length} 个面。请调整至恰好 6 个面。`;
     }
   }
 
@@ -617,7 +604,7 @@ class UnfoldLab {
   }
 
   stepAnimation() {
-    const speed = 0.02;
+    const speed = 0.025;
     this.foldProgress += this.animationDirection * speed;
     if (this.foldProgress >= 1) {
       this.foldProgress = 1;
@@ -631,30 +618,53 @@ class UnfoldLab {
     this.applyFoldProgress(this.foldProgress);
   }
 
-  /**
-   * 一键载入 11 种展开图之一
-   */
-  loadPatternById(patternId) {
-    const pat = this.patterns11[patternId];
+  loadPatternById(id) {
+    const pat = this.patterns11[id];
     if (!pat) return;
+    this.currentPatternId = id;
+    this.currentNetTree = pat.tree;
 
-    this.initGrid();
-    pat.cells.forEach(c => {
-      const def = this.faceDefinitions[c.face];
-      this.grid[c.r][c.c] = {
-        id: `f-${c.r}-${c.c}`,
-        faceKey: c.face,
-        label: def.name,
-        colorHex: def.color,
-        isBase: !!c.isBase
-      };
-    });
-
-    this.refreshAndAnalyze();
+    this.render2DCanvas();
+    this.rebuild3DFoldingModel();
   }
 
   initUI() {
-    // 正方体 / 长方体 切换单选
+    // 2D 画布鼠标拖拽平移 (Pan) 与滚轮缩放 (Zoom)
+    if (this.canvas2dBox) {
+      this.canvas2dBox.addEventListener('mousedown', (e) => {
+        this.isDragging2D = true;
+        this.dragStartX = e.clientX - this.panX;
+        this.dragStartY = e.clientY - this.panY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!this.isDragging2D) return;
+        this.panX = e.clientX - this.dragStartX;
+        this.panY = e.clientY - this.dragStartY;
+        this.updateTransform2D();
+      });
+
+      window.addEventListener('mouseup', () => {
+        this.isDragging2D = false;
+      });
+
+      this.canvas2dBox.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        this.zoom = Math.min(3.0, Math.max(0.4, this.zoom + delta));
+        this.updateTransform2D();
+      }, { passive: false });
+    }
+
+    // 2D 悬浮按钮 (放大、缩小、复位)
+    const btnZoomIn = document.getElementById('btn-2d-zoomin');
+    const btnZoomOut = document.getElementById('btn-2d-zoomout');
+    const btnReset2D = document.getElementById('btn-2d-reset');
+    if (btnZoomIn) btnZoomIn.addEventListener('click', () => { this.zoom = Math.min(3.0, this.zoom + 0.15); this.updateTransform2D(); });
+    if (btnZoomOut) btnZoomOut.addEventListener('click', () => { this.zoom = Math.max(0.4, this.zoom - 0.15); this.updateTransform2D(); });
+    if (btnReset2D) btnReset2D.addEventListener('click', () => this.reset2DView());
+
+    // 正方体 / 长方体 模式切换
     const shapeBtns = document.querySelectorAll('.unfold-shape-type-btn');
     shapeBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -662,16 +672,17 @@ class UnfoldLab {
         btn.classList.add('active');
         this.shapeType = btn.dataset.shape;
 
-        const dimBox = document.getElementById('cuboid-dim-inputs-row');
-        if (dimBox) {
-          dimBox.style.display = (this.shapeType === 'cuboid') ? 'grid' : 'none';
+        const dimInputs = document.getElementById('cuboid-dim-inputs-row');
+        if (dimInputs) {
+          dimInputs.style.display = (this.shapeType === 'cuboid') ? 'grid' : 'none';
         }
 
-        this.refreshAndAnalyze();
+        this.render2DCanvas();
+        this.rebuild3DFoldingModel();
       });
     });
 
-    // 长宽高实时修改
+    // 长宽高输入联动
     const inpL = document.getElementById('unfold-dim-l');
     const inpW = document.getElementById('unfold-dim-w');
     const inpH = document.getElementById('unfold-dim-h');
@@ -680,14 +691,16 @@ class UnfoldLab {
       this.dimL = Math.max(0.5, parseFloat(inpL?.value || 4));
       this.dimW = Math.max(0.5, parseFloat(inpW?.value || 3));
       this.dimH = Math.max(0.5, parseFloat(inpH?.value || 2));
-      this.refreshAndAnalyze();
+
+      this.render2DCanvas();
+      this.rebuild3DFoldingModel();
     };
 
     [inpL, inpW, inpH].forEach(inp => {
       if (inp) inp.addEventListener('input', handleDimChange);
     });
 
-    // 11 种展开图分类按钮点击事件绑定
+    // 11 种展开图分类按钮
     const patternBtns = document.querySelectorAll('.net-pattern-btn');
     patternBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -697,7 +710,7 @@ class UnfoldLab {
       });
     });
 
-    // 滑块与播放
+    // 折叠滑动条与动画
     const slider = document.getElementById('unfold-progress-slider');
     if (slider) {
       slider.addEventListener('input', (e) => {
@@ -711,23 +724,13 @@ class UnfoldLab {
       btnPlay.addEventListener('click', () => this.toggleAnimation());
     }
 
-    const btnClear = document.getElementById('btn-clear-grid');
-    if (btnClear) {
-      btnClear.addEventListener('click', () => {
-        this.initGrid();
-        this.refreshAndAnalyze();
-      });
-    }
-
     const btnResetCam = document.getElementById('btn-unfold-reset-cam');
     if (btnResetCam) {
       btnResetCam.addEventListener('click', () => {
-        this.camera.position.set(0, 9.5, 9.0);
+        this.camera.position.set(0, 8.5, 9.5);
         if (this.controls) this.controls.target.set(0, 0, 0);
       });
     }
-
-    this.updateLegendUI();
   }
 }
 

@@ -112,23 +112,23 @@
 
           <div class="panel-card">
             <div class="card-title">
-              <span>2D 展开图画布 (6×6 网格)</span>
-              <span class="tag" id="unfold-face-count">6 个方块</span>
+              <span>2D 表面展开图画布</span>
+              <span class="tag">支持拖动画布</span>
             </div>
             <div class="control-group">
-              <div class="unfold-canvas-2d-box">
-                <table class="net-grid-table" id="unfold-net-table"></table>
-              </div>
-            </div>
-
-            <div class="control-group">
-              <div class="btn-group">
-                <button class="btn-outline" id="btn-clear-grid">清空画布</button>
+              <div class="unfold-canvas-2d-box" id="unfold-canvas-2d-box">
+                <div class="canvas-2d-toolbar">
+                  <button class="canvas-2d-btn" id="btn-2d-zoomin" title="放大">➕</button>
+                  <button class="canvas-2d-btn" id="btn-2d-zoomout" title="缩小">➖</button>
+                  <button class="canvas-2d-btn" id="btn-2d-reset" title="居中复位">⟲</button>
+                </div>
+                <div class="canvas-2d-drag-tip">✋ 鼠标左键拖拽平移画布 · 滚轮缩放</div>
+                <div class="unfold-canvas-stage" id="unfold-canvas-stage"></div>
               </div>
             </div>
 
             <!-- 折叠进度条 -->
-            <div class="control-group">
+            <div class="control-group" style="margin-top:0.75rem;">
               <div class="control-label">
                 <span>折叠角度进度 (0° ~ 90°)</span>
                 <span class="val" id="unfold-progress-val">0%</span>

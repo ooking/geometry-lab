@@ -10,15 +10,91 @@
 }
 
 .unfold-canvas-2d-box {
-  background: rgba(10, 15, 24, 0.6);
-  border: 1px dashed var(--border-color);
+  background: rgba(10, 15, 24, 0.7);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 1rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   position: relative;
-  min-height: 220px;
+  min-height: 260px;
+  height: 280px;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+}
+
+.unfold-canvas-2d-box:active {
+  cursor: grabbing;
+}
+
+.unfold-canvas-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: 0 0;
+  transition: transform 0.05s ease-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 2D 矩形展开面块样式 */
+.net-rect-face {
+  position: absolute;
+  border-radius: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  font-family: var(--font-mono);
+  font-weight: bold;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  user-select: none;
+  box-sizing: border-box;
+}
+
+/* 2D 画布浮动控制条 */
+.canvas-2d-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.canvas-2d-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.15s;
+}
+
+.canvas-2d-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.canvas-2d-drag-tip {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  pointer-events: none;
+  z-index: 10;
 }
 
 .net-grid-table {
