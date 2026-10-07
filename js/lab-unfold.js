@@ -14,10 +14,12 @@ class UnfoldLab {
     this.foldMode = 'steps'; this.stepSeconds = 2;
     this.showAnswers = false; this.prediction = '';
     this.faceSpecs = {
-      bottom: { color: '#10b981' }, top: { color: '#3b82f6' },
-      front: { color: '#f97316' }, back: { color: '#8b5cf6' },
-      left: { color: '#f43f5e' }, right: { color: '#f59e0b' }
+      bottom: { color: '#185637' }, top: { color: '#174c9c' },
+      front: { color: '#933d12' }, back: { color: '#593287' },
+      left: { color: '#8f2844' }, right: { color: '#705314' }
     };
+    this.paperCanvas = this.createPaperTexture();
+    this.canvas2dStage.style.setProperty('--paper-texture', `url(${this.paperCanvas.toDataURL()})`);
     this.patterns11 = LabUtils.cubeNets();
     this.planCache = new Map();
     this.initThree();
@@ -157,7 +159,7 @@ class UnfoldLab {
     this.recommendedBase = candidates[0].face;
     this.baseFace = this.recommendedBase;
     this.prediction = ''; this.showAnswers = false;
-    this.resetModel(true);
+    this.resetModel(true, 1);
     document.querySelectorAll('.net-pattern-btn').forEach(button => {
       const active = button.dataset.id === id;
       button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
@@ -170,14 +172,14 @@ class UnfoldLab {
     this.resetModel(false);
   }
 
-  resetModel(resetPan = false) {
-    this.animating = false; this.foldProgress = 0; this.animationTarget = 1;
+  resetModel(resetPan = false, progress = 0) {
+    this.animating = false; this.foldProgress = progress; this.animationTarget = progress >= 1 ? 0 : 1;
     this.rootedLayout = LabUtils.rootNet(this.pattern, this.baseFace);
     if (resetPan) { this.panX = 0; this.panY = 0; }
     this.render2DCanvas();
     this.rebuild3DFoldingModel();
     this.updateLesson();
-    this.applyFoldProgress(0);
+    this.applyFoldProgress(progress);
   }
 
   render2DCanvas() {
@@ -207,8 +209,10 @@ class UnfoldLab {
       button.className = 'net-rect-face'; button.dataset.face = face;
       button.style.left = `${p.x - (minX + maxX) / 2}px`; button.style.top = `${p.y - (minY + maxY) / 2}px`;
       button.style.width = `${p.w}px`; button.style.height = `${p.h}px`;
-      button.style.background = this.faceSpecs[face].color;
-      button.textContent = this.getLabel(face);
+      const letter = document.createElement('span'); letter.className = 'face-letter';
+      letter.style.color = this.faceSpecs[face].color; letter.textContent = this.getLabel(face);
+      const role = document.createElement('span'); role.className = 'face-role';
+      button.append(letter, role);
       button.title = `${this.getLabel(face)} 面，${this.getDimensionText(face)}；点击设为底面`;
       button.addEventListener('click', event => {
         if (this.suppressFaceClick && event.detail > 0) { this.suppressFaceClick = false; return; }
@@ -272,7 +276,7 @@ class UnfoldLab {
           sign = -sign;
         }
         groups[item.parent].add(hinge); hinge.add(group);
-        const line = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, length, 6), new THREE.MeshBasicMaterial({ color: 0xe2e8f0 }));
+        const line = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, length, 6), new THREE.MeshBasicMaterial({ color: 0x775c3b }));
         if (axis === 'x') line.rotation.z = Math.PI / 2;
         hinge.add(line);
         this.foldHinges.push({ hinge, axis, sign, line, item });
@@ -295,28 +299,57 @@ class UnfoldLab {
     // Frame both the unfolded sheet and the closed solid without moving the bottom face.
     const bounds = new THREE.Box3().setFromObject(this.rootFoldGroup);
     this.applyRawAngles(Array(5).fill(1));
-    bounds.union(new THREE.Box3().setFromObject(this.rootFoldGroup));
+    this.closedBounds = new THREE.Box3().setFromObject(this.rootFoldGroup);
+    bounds.union(this.closedBounds);
+    this.expandedBounds = bounds;
     this.applyRawAngles(Array(5).fill(0));
-    const center = bounds.getCenter(new THREE.Vector3()), size = bounds.getSize(new THREE.Vector3());
-    const extent = Math.max(size.x / Math.max(this.camera.aspect, 0.1), size.y, size.z, 3);
-    this.frameSize = size; this.frameExtent = extent;
-    const distance = extent / (2 * Math.tan(this.camera.fov * Math.PI / 360)) * 1.5;
-    this.defaultViewTarget = center;
-    this.defaultViewPosition = center.clone().add(new THREE.Vector3(0.4, 0.8, 1).normalize().multiplyScalar(distance));
     this.resetCamera();
   }
 
+  updateFraming(folded) {
+    const bounds = folded ? this.closedBounds : this.expandedBounds;
+    if (!bounds) return;
+    const center = bounds.getCenter(new THREE.Vector3()), size = bounds.getSize(new THREE.Vector3());
+    const extent = Math.max(size.x / Math.max(this.camera.aspect, 0.1), size.y, size.z, 2);
+    this.frameSize = size; this.frameExtent = extent;
+    const distance = extent / (2 * Math.tan(this.camera.fov * Math.PI / 360)) * (folded ? 1.3 : 1.5);
+    this.defaultViewTarget = center;
+    this.defaultViewPosition = center.clone().add(new THREE.Vector3(0.6, 0.55, 1).normalize().multiplyScalar(distance));
+  }
+
+  createPaperTexture() {
+    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#b89564'; ctx.fillRect(0, 0, 512, 256);
+    // Repeatable fine fibers and mottling give a matte kraft-paper surface.
+    let seed = 1427;
+    const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let i = 0; i < 9000; i++) {
+      const x = random() * 512, y = random() * 256;
+      ctx.fillStyle = random() > 0.5 ? 'rgba(70,44,21,0.07)' : 'rgba(255,244,212,0.11)';
+      ctx.fillRect(x, y, 1 + random() * 2, 0.5 + random());
+    }
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 700; i++) {
+      const x = random() * 512, y = random() * 256;
+      ctx.strokeStyle = 'rgba(76,51,27,0.045)';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 3 + random() * 12, y + random() * 2); ctx.stroke();
+    }
+    return canvas;
+  }
+
   createFaceMesh(face, width, height) {
-    const geometry = new THREE.PlaneGeometry(width, height);
-    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: this.faceSpecs[face].color, side: THREE.DoubleSide }));
+    const geometry = new THREE.BoxGeometry(width, height, 0.018);
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xb89564, roughness: 1, metalness: 0 }));
     mesh.userData = { face, width, height };
-    const border = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0xffffff }));
+    const border = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x775c3b }));
     mesh.add(border); mesh.userData.border = border;
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 256;
     const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide });
-    const front = new THREE.Mesh(geometry, material); front.position.z = 0.003;
-    const back = new THREE.Mesh(geometry, material); back.position.z = -0.003; back.rotation.y = Math.PI;
+    const material = new THREE.MeshStandardMaterial({ map: texture, side: THREE.FrontSide, roughness: 1, metalness: 0 });
+    const labelGeometry = new THREE.PlaneGeometry(width, height);
+    const front = new THREE.Mesh(labelGeometry, material); front.position.z = 0.01;
+    const back = new THREE.Mesh(labelGeometry, material); back.position.z = -0.01; back.rotation.y = Math.PI;
     mesh.add(front, back); mesh.userData.labelCanvas = canvas; mesh.userData.labelTexture = texture;
     this.drawFaceLabel(mesh);
     return mesh;
@@ -324,16 +357,18 @@ class UnfoldLab {
 
   drawFaceLabel(mesh) {
     const face = mesh.userData.face, canvas = mesh.userData.labelCanvas, ctx = canvas.getContext('2d');
-    ctx.fillStyle = this.faceSpecs[face].color; ctx.fillRect(0, 0, 512, 256);
-    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.drawImage(this.paperCanvas, 0, 0);
+    ctx.fillStyle = this.faceSpecs[face].color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = 'bold 110px sans-serif'; ctx.fillText(this.getLabel(face), 256, 88);
+    ctx.fillStyle = '#48341d';
     ctx.font = '36px sans-serif'; ctx.fillText(this.getDimensionText(face), 256, 171, 460);
     ctx.font = 'bold 32px sans-serif';
     if (face === this.baseFace || this.showAnswers) ctx.fillText(this.getRole(face), 256, 220);
     mesh.userData.labelTexture.needsUpdate = true;
   }
 
-  resetCamera(top = false) {
+  resetCamera(top = false, folded = this.foldProgress >= 1) {
+    this.updateFraming(folded);
     if (!this.defaultViewTarget) return;
     const target = top ? new THREE.Vector3(0, 0, 0) : this.defaultViewTarget;
     this.camera.up.set(0, 1, 0);
@@ -451,10 +486,11 @@ class UnfoldLab {
     const activeIndex = this.foldMode === 'steps' && this.sequenceAvailable ? this.foldOrder[step] : null;
     const moving = activeIndex === null ? new Set() : this.getMovingFaces(activeIndex);
     this.foldHinges.forEach(({ line }, index) => {
-      line.material.color.setHex(index === activeIndex ? 0xfbbf24 : 0xcbd5e1);
+      line.visible = this.foldProgress < 1;
+      line.material.color.setHex(index === activeIndex ? 0xfbbf24 : 0x775c3b);
     });
     Object.entries(this.faceMeshes).forEach(([face, mesh]) => {
-      mesh.userData.border.material.color.setHex(face === this.baseFace ? 0xfbbf24 : moving.has(face) ? 0xfef08a : face === this.measureFace ? 0x38bdf8 : 0xffffff);
+      mesh.userData.border.material.color.setHex(face === this.measureFace ? 0x38bdf8 : this.foldProgress < 1 && face === this.baseFace ? 0xfbbf24 : this.foldProgress < 1 && moving.has(face) ? 0xfef08a : 0x775c3b);
     });
     this.canvas2dStage.querySelectorAll('[data-face]').forEach(button => {
       const face = button.dataset.face, isBase = face === this.baseFace;
@@ -463,7 +499,7 @@ class UnfoldLab {
       button.classList.toggle('is-measured', face === this.measureFace);
       button.setAttribute('aria-pressed', isBase);
       button.setAttribute('aria-label', `${this.getLabel(face)} 面${isBase ? '，当前底面' : '，点击设为底面'}`);
-      button.textContent = `${this.getLabel(face)}${isBase ? ' · 底' : this.showAnswers && this.getRole(face) === '顶面' ? ' · 顶' : ''}`;
+      button.querySelector('.face-role').textContent = isBase ? '底' : this.showAnswers && this.getRole(face) === '顶面' ? '顶' : '';
     });
     this.canvas2dStage.querySelectorAll('[data-hinge]').forEach(line => {
       line.classList.toggle('is-active', activeIndex !== null && line.dataset.hinge === this.foldHinges[activeIndex].item.face);
@@ -481,7 +517,7 @@ class UnfoldLab {
     slider.disabled = this.foldMode === 'steps' && !this.sequenceAvailable;
     const banner = document.getElementById('unfold-status-banner');
     banner.className = 'status-banner info';
-    if (this.foldMode === 'steps' && !this.sequenceAvailable) {
+    if (this.foldMode === 'steps' && !this.sequenceAvailable && this.foldProgress < 1) {
       banner.className = 'status-banner warning';
       banner.textContent = '这组尺寸与底面的分步路径暂不可用。请换底面或尺寸；整体折叠仅供观察连接关系，中途可能相交。';
     } else if (this.foldProgress >= 1) {
@@ -495,6 +531,7 @@ class UnfoldLab {
   }
 
   animateTo(target) {
+    if (target < 1 && this.foldProgress >= 1) this.resetCamera(false, false);
     this.animationTarget = target; this.animating = Math.abs(target - this.foldProgress) > 1e-7;
     this.applyFoldProgress(this.foldProgress);
   }
@@ -536,9 +573,9 @@ class UnfoldLab {
     const legend = document.getElementById('faces-legend-container'); legend.innerHTML = '';
     this.pattern.layout.slice().sort((a, b) => a.label.localeCompare(b.label)).forEach(item => {
       const entry = document.createElement('div'); entry.className = 'face-legend-item';
-      const dot = document.createElement('span'); dot.className = 'face-color-dot'; dot.style.background = this.faceSpecs[item.face].color;
+      const dot = document.createElement('strong'); dot.className = 'face-letter'; dot.style.color = this.faceSpecs[item.face].color; dot.textContent = item.label;
       const label = document.createElement('span');
-      label.textContent = `${item.label} · ${this.getDimensionText(item.face)}${item.face === this.baseFace || this.showAnswers ? ` · ${this.getRole(item.face)}` : ''}`;
+      label.textContent = `${this.getDimensionText(item.face)}${item.face === this.baseFace || this.showAnswers ? ` · ${this.getRole(item.face)}` : ''}`;
       entry.append(dot, label); legend.appendChild(entry);
     });
     const answer = document.getElementById('unfold-answer');
@@ -590,8 +627,9 @@ class UnfoldLab {
       const size = this.getFaceSize(item.face, true);
       const button = document.createElement('button'); button.type = 'button';
       button.className = 'unfold-area-face'; button.dataset.areaFace = item.face;
-      button.style.borderLeftColor = this.faceSpecs[item.face].color;
-      button.textContent = `${item.label} 面 · ${f(size.w * size.h)} ${unit}²`;
+      const letter = document.createElement('strong'); letter.className = 'face-letter';
+      letter.style.color = this.faceSpecs[item.face].color; letter.textContent = item.label;
+      button.append(letter, document.createTextNode(` 面 · ${f(size.w * size.h)} ${unit}²`));
       button.setAttribute('aria-pressed', item.face === this.measureFace);
       button.addEventListener('click', () => {
         this.measureFace = this.measureFace === item.face ? null : item.face;
@@ -609,7 +647,7 @@ class UnfoldLab {
       const input = event.target;
       if (!input.validity.valid || !Number.isFinite(input.valueAsNumber)) return;
       this.cubeEdge = input.valueAsNumber;
-      this.resetModel(false);
+      this.resetModel(false, this.foldProgress);
     });
     document.getElementById('unfold-length-unit').addEventListener('change', event => {
       this.lengthUnit = event.target.value;
@@ -664,9 +702,13 @@ class UnfoldLab {
     document.getElementById('btn-unfold-toggle').addEventListener('click', () => this.toggleAnimation());
     document.getElementById('btn-unfold-prev').addEventListener('click', () => this.animateTo(Math.max(0, Math.floor(this.foldProgress * 5 - 1e-6) / 5)));
     document.getElementById('btn-unfold-next').addEventListener('click', () => this.animateTo(Math.min(1, Math.floor(this.foldProgress * 5 + 1e-6) / 5 + 0.2)));
-    document.getElementById('btn-unfold-open').addEventListener('click', () => { this.animating = false; this.animationTarget = 1; this.applyFoldProgress(0); });
+    document.getElementById('btn-unfold-open').addEventListener('click', () => { this.animating = false; this.animationTarget = 1; this.applyFoldProgress(0); this.resetCamera(); });
     document.getElementById('btn-unfold-recommended').addEventListener('click', () => this.setBase(this.recommendedBase));
-    document.getElementById('unfold-progress-slider').addEventListener('input', event => { this.animating = false; this.animationTarget = 1; this.applyFoldProgress(Number(event.target.value) / 1000); });
+    document.getElementById('unfold-progress-slider').addEventListener('input', event => {
+      const progress = Number(event.target.value) / 1000;
+      if (this.foldProgress >= 1 && progress < 1) this.resetCamera(false, false);
+      this.animating = false; this.animationTarget = 1; this.applyFoldProgress(progress);
+    });
     document.querySelectorAll('.unfold-mode-btn').forEach(button => button.addEventListener('click', () => {
       this.foldMode = button.dataset.mode; this.animating = false; this.animationTarget = 1;
       document.querySelectorAll('.unfold-mode-btn').forEach(item => { const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-pressed', active); });
@@ -681,13 +723,13 @@ class UnfoldLab {
       document.querySelectorAll('.unfold-shape-type-btn').forEach(item => item.classList.toggle('active', item === button));
       document.getElementById('cube-dim-inputs-row').style.display = this.shapeType === 'cube' ? 'grid' : 'none';
       document.getElementById('cuboid-dim-inputs-row').style.display = this.shapeType === 'cuboid' ? 'grid' : 'none';
-      this.resetModel(false);
+      this.resetModel(false, this.foldProgress);
     }));
     const inputs = ['l', 'w', 'h'].map(axis => document.getElementById(`unfold-dim-${axis}`));
     inputs.forEach(input => input.addEventListener('input', () => {
       if (!inputs.every(item => item.validity.valid && Number.isFinite(item.valueAsNumber))) return;
       [this.dimL, this.dimW, this.dimH] = inputs.map(item => item.valueAsNumber);
-      this.resetModel(false);
+      this.resetModel(false, this.foldProgress);
     }));
   }
 }

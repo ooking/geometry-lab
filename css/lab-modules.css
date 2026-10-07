@@ -635,3 +635,11 @@ button:disabled { opacity: 0.45; cursor: default; }
 .measure-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem; font-size: 0.85rem; margin-top: 0.75rem; }
 .measure-result strong { color: var(--accent-emerald); font-size: 1.35rem; overflow-wrap: anywhere; }
 .measure-scaling { border-left: 3px solid var(--accent-amber); padding-left: 0.75rem; margin-top: 0.9rem; font-size: 0.8rem; line-height: 1.7; color: var(--text-muted); }
+
+/* Neutral paper faces; only the identifying letters carry a face-specific color. */
+#unfold-canvas-stage .net-rect-face { background-color: #b89564; background-image: var(--paper-texture); background-size: 100% 100%; color: #48341d; border-color: #775c3b; text-shadow: none; flex-direction: column; gap: 0.1rem; }
+#unfold-canvas-stage .net-rect-face .face-letter { font-size: 1.15rem !important; font-weight: 800; }
+#unfold-canvas-stage .net-rect-face .face-role { font-size: 0.65rem !important; }
+#faces-legend-container .face-legend-item { background: #c6a775; color: #48341d; }
+#faces-legend-container .face-letter { flex-shrink: 0; font-size: 0.95rem; }
+.unfold-area-face { background: #c6a775; color: #48341d; border-left-width: 1px; }
