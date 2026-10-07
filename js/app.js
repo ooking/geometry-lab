@@ -1,6 +1,7 @@
 /** Navigation and lazy initialization for the teaching workspaces. */
 document.addEventListener('DOMContentLoaded', () => {
   const labs = new Map();
+  window.TeachingApplications?.mount();
   const constructors = { unfold: 'UnfoldLab', views: 'ViewsLab', section: 'SectionLab' };
   const tabs = [...document.querySelectorAll('.tab-btn')];
   const panels = [...document.querySelectorAll('.tab-panel')];
@@ -47,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     panels.forEach(panel => panel.classList.toggle('active', panel.id === `panel-${name}`));
     labs.forEach(lab => lab.setActive(false));
+    window.TeachingApplications?.setWorkspace(name);
     // Wait for the visible panel's layout, and disregard superseded navigation.
     requestAnimationFrame(() => {
       if (activeName !== name) return;
@@ -95,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('visibilitychange', () => {
     labs.forEach((lab, name) => lab.setActive(name === activeName));
+    window.TeachingApplications?.setWorkspace(activeName);
   });
 
   const fullscreen = document.getElementById('btn-fullscreen');
