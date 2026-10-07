@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>通用空间几何动态探究实验室 - 展开折叠·三视图·截面切片·表面积优化</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/lab-modules.css">
+</head>
+<body>
+
+  <!-- 顶部导航栏 -->
+  <header class="header-bar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>通用空间几何动态探究实验室</h1>
+        <p>立体图形认识·展开与折叠·三视图逆推·截面切片·表面积优化</p>
+      </div>
+    </div>
+
+    <!-- 模块切换导航 -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-target="unfold">
+        <span>📐 展开与折叠工坊</span>
+      </button>
+      <button class="tab-btn" data-target="views">
+        <span>🧊 三视图与方块探究</span>
+      </button>
+      <button class="tab-btn" data-target="section">
+        <span>💧 截面与切片实验室</span>
+      </button>
+      <button class="tab-btn" data-target="packing">
+        <span>📦 拼装与表面积优化</span>
+      </button>
+    </nav>
+
+    <div class="header-actions">
+      <button class="btn-secondary" id="btn-fullscreen" title="全屏沉浸式演示">
+        <span>⛶ 全屏演示</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主体工作区容器 -->
+  <main class="main-container">
+
+    <!-- ==============================================================
+         模块 1: 通用展开与折叠工坊 (Unfold & Fold Studio)
+         ============================================================== -->
+    <section class="tab-panel active" id="panel-unfold">
+      <div class="workspace-grid">
+        <!-- 3D 舞台 -->
+        <div class="stage-card">
+          <div class="stage-header">
+            <div class="stage-title">
+              <span class="dot"></span>
+              <span>3D 骨骼动力连续折叠视口</span>
+            </div>
+            <div class="stage-toolbar">
+              <button class="btn-outline" id="btn-unfold-reset-cam">🔄 视角复位</button>
+              <button class="btn-primary" id="btn-unfold-toggle">▶ 连续折叠 / 展开</button>
+            </div>
+          </div>
+          <div class="stage-canvas-container" id="canvas-unfold-container">
+            <div class="stage-overlay-tips">
+              <span>🖱️ <kbd>左键</kbd> 旋转视口</span>
+              <span>🔍 <kbd>滚轮</kbd> 缩放</span>
+              <span>🎨 折叠闭合后自动标注 3 组相对面</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="sidebar-panel">
+          <div class="panel-card">
+            <div class="card-title">
+              <span>自由展开图绘制板</span>
+              <span class="tag">6×6 通用画布</span>
+            </div>
+            <div class="control-group">
+              <div class="control-label">
+                <span>点击网格自由放置/清除方块</span>
+                <span class="val" id="unfold-face-count">0 个方块</span>
+              </div>
+              <div class="unfold-canvas-2d-box">
+                <table class="net-grid-table" id="unfold-net-table"></table>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="btn-group">
+                <button class="btn-outline" id="btn-clear-grid">清空画布</button>
+              </div>
+            </div>
+
+            <!-- 折叠进度条 -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>折叠进度 (0° ~ 90°)</span>
+                <span class="val" id="unfold-progress-val">0%</span>
+              </div>
+              <input type="range" id="unfold-progress-slider" min="0" max="100" value="0">
+            </div>
+
+            <!-- 智能状态检测横幅 -->
+            <div class="status-banner info" id="unfold-status-banner">
+              💡 正在就绪...
+            </div>
+          </div>
+
+          <!-- 经典模板库 -->
+          <div class="panel-card">
+            <div class="card-title">
+              <span>常用展开图模版一键载入</span>
+              <span class="tag">题型预设</span>
+            </div>
+            <div class="unfold-templates-pill">
+              <button class="template-pill-btn tpl-btn active" data-preset="1-4-1">一四一型 (正方体)</button>
+              <button class="template-pill-btn tpl-btn" data-preset="2-3-1">二三一型 (正方体)</button>
+              <button class="template-pill-btn tpl-btn" data-preset="2-2-2">二二二型 (阶梯状)</button>
+              <button class="template-pill-btn tpl-btn" data-preset="3-3">三三型 (错位状)</button>
+              <button class="template-pill-btn tpl-btn" data-preset="q13-demo">7格待剪裁典型图</button>
+            </div>
+          </div>
+
+          <!-- 长方体展开图外围周长计算器 -->
+          <div class="panel-card">
+            <div class="card-title">
+              <span>长方体表面展开图周长极值探究</span>
+              <span class="tag">极值模型</span>
+            </div>
+            <div class="dimension-inputs-row">
+              <div class="dim-input-box">
+                <label>长 (a)</label>
+                <input type="number" id="cuboid-p-l" value="5" min="0.1" step="0.5">
+              </div>
+              <div class="dim-input-box">
+                <label>宽 (b)</label>
+                <input type="number" id="cuboid-p-w" value="3" min="0.1" step="0.5">
+              </div>
+              <div class="dim-input-box">
+                <label>高 (c)</label>
+                <input type="number" id="cuboid-p-h" value="4" min="0.1" step="0.5">
+              </div>
+            </div>
+            <div class="metric-card" id="perimeter-calc-result" style="width:100%;">
+              正在计算...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ==============================================================
+         模块 2: 通用小立方块堆叠与三视图生成器 (Voxel Studio)
+         ============================================================== -->
+    <section class="tab-panel" id="panel-views">
+      <div class="workspace-grid">
+        <div class="stage-card">
+          <div class="stage-header">
+            <div class="stage-title">
+              <span class="dot"></span>
+              <span>3D 积木自由搭建台与空间投影视口</span>
+            </div>
+            <div class="stage-toolbar">
+              <div class="btn-group">
+                <button class="btn-outline grid-size-btn active" data-size="3">3×3 网格</button>
+                <button class="btn-outline grid-size-btn" data-size="4">4×4 网格</button>
+                <button class="btn-outline" id="btn-clear-views">清空</button>
+              </div>
+            </div>
+          </div>
+          <div class="stage-canvas-container" id="canvas-views-container">
+            <div class="stage-overlay-tips">
+              <span>🖱️ <kbd>左键</kbd> 旋转</span>
+              <span>🔍 <kbd>滚轮</kbd> 缩放</span>
+              <span>💡 正面(蓝)与左面(绿)已在地板标出</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-panel">
+          <div class="panel-card">
+            <div class="card-title">
+              <span>俯视图高度标数矩阵</span>
+              <span class="tag">点击增减</span>
+            </div>
+            <div class="control-group">
+              <div class="control-label">
+                <span>左键点击 +1 高度，右键点击 -1 高度</span>
+              </div>
+              <div class="unfold-canvas-2d-box" style="min-height:auto;padding:0.6rem;">
+                <table class="topview-matrix-table" id="topview-matrix-table"></table>
+              </div>
+            </div>
+
+            <!-- 三重视图实时正投影 -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>三视图实时正射投影</span>
+              </div>
+              <div class="views-triple-display">
+                <div class="view-card-mini">
+                  <div class="v-title">主视图 <span class="badge">从正面看</span></div>
+                  <div class="view-svg-container">
+                    <svg id="svg-front-view"></svg>
+                  </div>
+                </div>
+                <div class="view-card-mini">
+                  <div class="v-title">左视图 <span class="badge">从左面看</span></div>
+                  <div class="view-svg-container">
+                    <svg id="svg-left-view"></svg>
+                  </div>
+                </div>
+                <div class="view-card-mini">
+                  <div class="v-title">俯视图 <span class="badge">从上面看</span></div>
+                  <div class="view-svg-container">
+                    <svg id="svg-top-view"></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 极值逆推分析 -->
+            <div class="status-banner" id="views-q16-banner"></div>
+          </div>
+
+          <!-- 典型形态预设 -->
+          <div class="panel-card">
+            <div class="card-title">
+              <span>典型几何体形态预设</span>
+              <span class="tag">快速探究</span>
+            </div>
+            <div class="unfold-templates-pill">
+              <button class="template-pill-btn views-demo-btn active" data-pattern="stepped">阶梯式几何体</button>
+              <button class="template-pill-btn views-demo-btn" data-pattern="corner">角锥式堆叠</button>
+              <button class="template-pill-btn views-demo-btn" data-pattern="u-shape">凹形对称几何体</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ==============================================================
+         模块 3: 通用截面与切片实验室 (Cross-Section Lab)
+         ============================================================== -->
+    <section class="tab-panel" id="panel-section">
+      <div class="workspace-grid">
+        <div class="stage-card">
+          <div class="stage-header">
+            <div class="stage-title">
+              <span class="dot"></span>
+              <span>3D 多面体透明容器与动态切片视口</span>
+            </div>
+            <div class="stage-toolbar">
+              <span id="section-shape-badge" class="section-shape-badge tri">计算截面中...</span>
+            </div>
+          </div>
+          <div class="stage-canvas-container" id="canvas-section-container">
+            <div class="stage-overlay-tips">
+              <span>🖱️ <kbd>拖拽</kbd> 任意 360° 旋转几何体</span>
+              <span>🟡 金黄色多边形即为切面截面</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-panel">
+          <div class="panel-card">
+            <div class="card-title">
+              <span>几何体类型选择</span>
+              <span class="tag">多面体库</span>
+            </div>
+            <div class="btn-group">
+              <button class="btn-outline solid-type-btn active" data-solid="cube">正方体 (6面)</button>
+              <button class="btn-outline solid-type-btn" data-solid="cuboid">长方体 (6面)</button>
+              <button class="btn-outline solid-type-btn" data-solid="tetra">正四面体 (4面)</button>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="card-title">
+              <span>水位 / 切面深度调节</span>
+              <span class="tag">参数控制</span>
+            </div>
+            <div class="control-group">
+              <div class="control-label">
+                <span>切面相对深度</span>
+                <span class="val" id="water-level-val">50%</span>
+              </div>
+              <input type="range" id="water-level-slider" min="5" max="95" value="50">
+            </div>
+
+            <!-- 经典姿态预设 -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>经典截面姿态快捷切换</span>
+              </div>
+              <div class="preset-orientations-grid">
+                <button class="btn-outline" id="btn-preset-corner">📐 切角 (三角形)</button>
+                <button class="btn-outline" id="btn-preset-face">⬛ 平放 (矩形/正方形)</button>
+                <button class="btn-outline" id="btn-preset-edge">▱ 倾斜 (梯形/五边形)</button>
+                <button class="btn-outline" id="btn-preset-hexagon">🛑 对称 (正六边形)</button>
+              </div>
+            </div>
+
+            <!-- 三轴微调 -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>三轴姿态角度微调</span>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:0.4rem;">
+                <input type="range" id="cube-rot-x" min="-180" max="180" value="45" title="X轴旋转">
+                <input type="range" id="cube-rot-y" min="-180" max="180" value="0" title="Y轴旋转">
+                <input type="range" id="cube-rot-z" min="-180" max="180" value="35" title="Z轴旋转">
+              </div>
+            </div>
+
+            <!-- 数据指标 -->
+            <div class="metric-grid">
+              <div class="metric-card">
+                <div class="label">当前截面边数</div>
+                <div class="value" id="sec-metric-edges">-</div>
+              </div>
+              <div class="metric-card">
+                <div class="label">该几何体截面最大边数</div>
+                <div class="value" id="sec-metric-max" style="color:var(--accent-emerald);">-</div>
+              </div>
+            </div>
+
+            <div style="font-size:0.8rem;color:#cbd5e1;margin-top:0.75rem;" id="section-shape-desc"></div>
+
+            <!-- 通用定理卡片 -->
+            <div class="impossible-heptagon-card">
+              <div class="impossible-title">
+                <span>💡 立体几何截面定理</span>
+              </div>
+              <div class="impossible-desc">
+                平面截凸多面体所形成的截面，其<strong>每一条边都是该平面与多面体某一个表面的交线</strong>。<br>
+                因此：<strong>截面多边形的边数 k 绝不可能超过该几何体自身的表面总数 F</strong>（即 3 ≤ k ≤ F）。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ==============================================================
+         模块 4: 通用几何体拼装与表面积优化 (Packing Optimizer)
+         ============================================================== -->
+    <section class="tab-panel" id="panel-packing">
+      <div class="workspace-grid">
+        <div class="stage-card">
+          <div class="stage-header">
+            <div class="stage-title">
+              <span class="dot"></span>
+              <span>3D 多箱拼装拆解与接触重叠面透视视口</span>
+            </div>
+            <div class="stage-toolbar">
+              <div class="btn-group">
+                <button class="btn-outline box-rule-btn active" data-rule="standard">普通长方体表面积</button>
+                <button class="btn-outline box-rule-btn" data-rule="double-top">双层上盖纸箱</button>
+              </div>
+            </div>
+          </div>
+          <div class="stage-canvas-container" id="canvas-packing-container">
+            <div class="stage-overlay-tips">
+              <span>🖱️ <kbd>拖拽</kbd> 旋转视口</span>
+              <span>🧩 支持 2盒/3盒/4盒 拼装组合</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-panel">
+          <div class="panel-card">
+            <div class="card-title">
+              <span>单盒尺寸与拼装数量</span>
+              <span class="tag">自由配置</span>
+            </div>
+            <div class="dimension-inputs-row">
+              <div class="dim-input-box">
+                <label>长 (L)</label>
+                <input type="number" id="pack-dim-l" value="5" min="0.5" step="0.5">
+              </div>
+              <div class="dim-input-box">
+                <label>宽 (W)</label>
+                <input type="number" id="pack-dim-w" value="3" min="0.5" step="0.5">
+              </div>
+              <div class="dim-input-box">
+                <label>高 (H)</label>
+                <input type="number" id="pack-dim-h" value="4" min="0.5" step="0.5">
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="control-label">
+                <span>拼接数量</span>
+              </div>
+              <div class="btn-group">
+                <button class="btn-outline pack-count-btn active" data-count="2">2 个拼合</button>
+                <button class="btn-outline pack-count-btn" data-count="3">3 个拼合</button>
+                <button class="btn-outline pack-count-btn" data-count="4">4 个拼合</button>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="control-label">
+                <span>拼接方向</span>
+              </div>
+              <div class="btn-group">
+                <button class="btn-outline pack-dir-btn" data-dir="along-L">前后并排 (沿长)</button>
+                <button class="btn-outline pack-dir-btn" data-dir="along-W">左右并排 (沿宽)</button>
+                <button class="btn-outline pack-dir-btn active" data-dir="along-H">上下堆叠 (沿高)</button>
+              </div>
+            </div>
+
+            <!-- 吸附/拆解滑块 -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>拼装吸附 / 炸开分离度</span>
+                <span class="val" id="pack-sep-val">0%</span>
+              </div>
+              <input type="range" id="pack-sep-slider" min="0" max="100" value="0">
+            </div>
+
+            <!-- 对比表格 -->
+            <div class="comparison-table-wrap">
+              <table class="comparison-table">
+                <thead>
+                  <tr>
+                    <th>拼合方向</th>
+                    <th>拼后尺寸</th>
+                    <th>重叠总面积</th>
+                    <th>普通表面积</th>
+                    <th>额外盖</th>
+                    <th>总面积</th>
+                  </tr>
+                </thead>
+                <tbody id="packing-table-body"></tbody>
+              </table>
+            </div>
+
+            <div class="status-banner" id="packing-conclusion-banner"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer-bar">
+    通用空间几何动态探究实验室 · 基于现代 WebGL & Three.js 打造 · 开箱即用的纯静态单页架构
+  </footer>
+
+  <!-- 引入 Three.js 与 OrbitControls (优先本地，缺失时自动 CDN 回退) -->
+  <script src="lib/three.min.js"></script>
+  <script>
+    if (!window.THREE) {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <script src="lib/OrbitControls.js"></script>
+  <script>
+    if (!window.THREE || !THREE.OrbitControls) {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+    }
+  </script>
+
+  <!-- 业务逻辑脚本 -->
+  <script src="js/lab-unfold.js"></script>
+  <script src="js/lab-views.js"></script>
+  <script src="js/lab-section.js"></script>
+  <script src="js/lab-packing.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,412 @@
+/* ===================================================================
+   各模块专属交互样式 (lab-modules.css)
+   =================================================================== */
+
+/* ---------------- 模块1: 展开与折叠实验室 ---------------- */
+.unfold-grid-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.unfold-canvas-2d-box {
+  background: rgba(10, 15, 24, 0.6);
+  border: 1px dashed var(--border-color);
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  min-height: 220px;
+}
+
+.net-grid-table {
+  border-collapse: separate;
+  border-spacing: 4px;
+}
+
+.net-cell {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-dim);
+}
+
+.net-cell:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.net-cell.active-face {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: 1px solid #60a5fa;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.net-cell.face-cut {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px dashed #f43f5e;
+  color: #f43f5e;
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.net-cell.base-face {
+  background: linear-gradient(135deg, #059669, #10b981) !important;
+  border-color: #34d399 !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+}
+
+.net-cell.overlap-face {
+  background: linear-gradient(135deg, #dc2626, #ef4444) !important;
+  border-color: #f87171 !important;
+  animation: pulseShake 0.4s infinite;
+}
+
+@keyframes pulseShake {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.unfold-templates-pill {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+}
+
+.template-pill-btn {
+  padding: 0.35rem 0.65rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.template-pill-btn:hover, .template-pill-btn.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+/* ---------------- 模块2: 三视图与小立方体工坊 ---------------- */
+.views-layout-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.views-triple-display {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.view-card-mini {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.view-card-mini .v-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.view-card-mini .v-title .badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--accent-blue);
+}
+
+.view-svg-container {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topview-matrix-table {
+  border-collapse: separate;
+  border-spacing: 4px;
+}
+
+.topview-matrix-cell {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s;
+}
+
+.topview-matrix-cell:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--accent-blue);
+}
+
+.topview-matrix-cell.has-blocks {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.cell-letter {
+  font-size: 0.65rem;
+  color: var(--accent-amber);
+  font-family: var(--font-mono);
+}
+
+.cell-num {
+  font-size: 0.9rem;
+  font-weight: bold;
+  font-family: var(--font-mono);
+}
+
+/* 左视图作答网格 */
+.answer-grid-interactive {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  grid-template-rows: repeat(3, 34px);
+  gap: 3px;
+  margin: 0.5rem 0;
+  border: 2px dashed rgba(90, 115, 150, 0.4);
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(10, 15, 24, 0.4);
+}
+
+.answer-cell {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.answer-cell.painted {
+  background: #3b82f6;
+  box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.4);
+}
+
+/* ---------------- 模块3: 正方体截面与注水切片探究 ---------------- */
+.section-shape-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.section-shape-badge.tri {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid #38bdf8;
+}
+
+.section-shape-badge.quad {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid #34d399;
+}
+
+.section-shape-badge.penta {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid #fbbf24;
+}
+
+.section-shape-badge.hexa {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid #c084fc;
+}
+
+.preset-orientations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.impossible-heptagon-card {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.1), rgba(15, 23, 42, 0.8));
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  border-radius: 10px;
+  padding: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.impossible-title {
+  color: #fda4af;
+  font-size: 0.85rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.impossible-desc {
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+
+/* ---------------- 模块4: 长方体拼包与表面积优化 ---------------- */
+.dimension-inputs-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.dim-input-box {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.dim-input-box label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.dim-input-box input {
+  background: transparent;
+  border: none;
+  color: var(--accent-cyan);
+  font-size: 1.05rem;
+  font-family: var(--font-mono);
+  font-weight: bold;
+  outline: none;
+  width: 100%;
+}
+
+.packing-methods-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.packing-method-card {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.packing-method-card:hover {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(90, 115, 150, 0.5);
+}
+
+.packing-method-card.active {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.25);
+}
+
+.packing-method-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.method-name {
+  font-size: 0.825rem;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.method-details {
+  font-size: 0.725rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+.method-area-val {
+  font-family: var(--font-mono);
+  font-weight: bold;
+  font-size: 0.95rem;
+  color: var(--accent-emerald);
+}
+
+.comparison-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.comparison-table th {
+  background: rgba(15, 23, 42, 0.8);
+  padding: 0.5rem;
+  text-align: left;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.comparison-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: var(--font-mono);
+}
+
+.comparison-table tr.highlight-best {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.comparison-table tr.highlight-best td {
+  color: #6ee7b7;
+  font-weight: bold;
+}
