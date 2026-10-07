@@ -47,6 +47,29 @@ window.LabUtils = {
     lab.resizeObserver = new ResizeObserver(lab.resize);
     lab.resizeObserver.observe(lab.container);
   },
+  rootNet(pattern, rootFace) {
+    const directions = [[0, 1, 'top'], [0, -1, 'bottom'], [1, 0, 'right'], [-1, 0, 'left']];
+    const neg = vector => vector.map(value => -value);
+    const root = pattern.layout.find(item => item.face === rootFace);
+    const queue = [{ ...root, parent: null, depth: 0, u: [1, 0, 0], v: [0, 1, 0], n: [0, 0, 1] }];
+    const visited = new Set([rootFace]), result = [];
+    while (queue.length) {
+      const item = queue.shift();
+      result.push(item);
+      directions.forEach(([dx, dy, edge]) => {
+        const next = pattern.layout.find(cell => cell.x === item.x + dx && cell.y === item.y + dy);
+        if (!next || visited.has(next.face)) return;
+        visited.add(next.face);
+        let u = item.u, v = item.v, n;
+        if (edge === 'top') { v = item.n; n = neg(item.v); }
+        if (edge === 'bottom') { v = neg(item.n); n = item.v; }
+        if (edge === 'right') { u = item.n; n = neg(item.u); }
+        if (edge === 'left') { u = neg(item.n); n = item.u; }
+        queue.push({ ...next, parent: item.face, edge, depth: item.depth + 1, u, v, n });
+      });
+    }
+    return result;
+  },
   // Enumerate free hexominoes, identify cube nets by six distinct folded normals.
   cubeNets() {
     const directions = [[0, 1, 'top'], [0, -1, 'bottom'], [1, 0, 'right'], [-1, 0, 'left']];
@@ -81,8 +104,8 @@ window.LabUtils = {
       for (const candidate of variants(cells)) {
         const counts = [];
         candidate.forEach(([, y]) => { counts[y] = (counts[y] || 0) + 1; });
-        const signature = [...counts].sort((a, b) => a - b).join(',');
-        const type = { '1,1,4': '141', '1,2,3': '231', '2,2,2': '222', '3,3': '33' }[signature];
+        const signature = counts.join(',');
+        const type = { '1,4,1': '141', '2,3,1': '231', '1,3,2': '231', '2,2,2': '222', '3,3': '33' }[signature];
         if (type) { chosen = candidate; category = type; break; }
       }
       if (!chosen) return;
@@ -114,9 +137,15 @@ window.LabUtils = {
       if (adjacencyCount !== 5 || new Set(layout.map(item => item.face)).size !== 6) return;
       groups[category].push(layout);
     });
+    const expected = { '141': 6, '231': 3, '222': 1, '33': 1 };
+    Object.entries(expected).forEach(([category, count]) => {
+      if (groups[category].length !== count) throw new Error(`展开图分类 ${category} 数量不符`);
+    });
     const patterns = {};
     Object.entries(groups).forEach(([category, layouts]) => layouts.forEach((layout, index) => {
-      patterns[`${category}-${index + 1}`] = { name: `${category} 型 ${index + 1}`, layout };
+      const ordered = [...layout].sort((a, b) => a.y - b.y || a.x - b.x);
+      layout.forEach(item => { item.label = String.fromCharCode(65 + ordered.indexOf(item)); });
+      patterns[`${category}-${index + 1}`] = { name: `${category} 型 ${index + 1}`, category, layout };
     }));
     return patterns;
   }

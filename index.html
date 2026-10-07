@@ -52,165 +52,99 @@
          模块 1: 通用展开与折叠工坊 (Unfold & Fold Studio)
          ============================================================== -->
     <section class="tab-panel active" id="panel-unfold">
-      <p class="learning-note lesson-prompt">先预测哪些面会相对，再拖动进度条逐步折叠，核对颜色和尺寸。旋转视角可以观察闭合后的各个面。</p>
+      <p class="learning-note lesson-prompt">选展开图 → 点一个面作为底面 → 预测顶面 → 分步折叠 → 核对答案。换一个底面，再观察哪些关系保持不变。</p>
       <div class="workspace-grid">
-        <!-- 3D 舞台 -->
         <div class="stage-card">
           <div class="stage-header">
-            <div class="stage-title">
-              <span class="dot"></span>
-              <span>看展开图如何折成立体</span>
-            </div>
+            <div class="stage-title"><span class="dot"></span><span>底面不动，看其他面怎样折起来</span></div>
             <div class="stage-toolbar">
-              <button class="btn-outline" id="btn-unfold-reset-cam">回到初始视角</button>
-              <button class="btn-primary" id="btn-unfold-toggle">▶ 折叠 / 继续</button>
+              <button class="btn-outline" id="btn-unfold-reset-cam">初始视角</button>
+              <button class="btn-outline" id="btn-unfold-top-cam">从上往下看</button>
+              <button class="btn-primary" id="btn-unfold-toggle">▶ 播放折叠</button>
             </div>
           </div>
           <div class="stage-canvas-container" id="canvas-unfold-container">
             <div class="stage-overlay-tips">
-              <span>🖱️ <kbd>左键</kbd> 旋转观察</span>
-              <span>🔍 <kbd>滚轮</kbd> 缩放</span>
-              <span>🎨 相对面：底↔顶、前↔后、左↔右</span>
+              <span>🖱️ 拖动旋转 · 滚轮缩放</span>
+              <span>🔤 A～F 对应右侧六个面</span>
+              <span>🟡 黄色折痕表示当前步骤</span>
             </div>
           </div>
         </div>
 
-        <!-- 控制面板 -->
         <div class="sidebar-panel">
           <div class="panel-card">
-            <div class="card-title">
-              <span>选一个立体，设置尺寸</span>
-              <span class="tag">正方体 / 长方体</span>
-            </div>
-            <div class="btn-group" style="margin-bottom:0.75rem;">
+            <div class="card-title"><span>选一个立体，设置尺寸</span></div>
+            <div class="btn-group">
               <button class="btn-outline unfold-shape-type-btn active" data-shape="cube">正方体</button>
               <button class="btn-outline unfold-shape-type-btn" data-shape="cuboid">长方体</button>
             </div>
-
-            <!-- 长方体长宽高调节栏 (切换到长方体时展示) -->
-            <div class="dimension-inputs-row" id="cuboid-dim-inputs-row" style="display:none;">
-              <div class="dim-input-box">
-                <label for="unfold-dim-l">长</label>
-                <input aria-label="长方体的长" type="number" id="unfold-dim-l" value="4" min="0.5" max="100" step="any">
-              </div>
-              <div class="dim-input-box">
-                <label for="unfold-dim-w">宽</label>
-                <input aria-label="长方体的宽" type="number" id="unfold-dim-w" value="3" min="0.5" max="100" step="any">
-              </div>
-              <div class="dim-input-box">
-                <label for="unfold-dim-h">高</label>
-                <input aria-label="长方体的高" type="number" id="unfold-dim-h" value="2" min="0.5" max="100" step="any">
-              </div>
+            <div class="dimension-inputs-row" id="cuboid-dim-inputs-row" style="display:none;margin-top:0.75rem;">
+              <div class="dim-input-box"><label for="unfold-dim-l">长</label><input type="number" id="unfold-dim-l" value="4" min="0.5" max="100" step="any"></div>
+              <div class="dim-input-box"><label for="unfold-dim-w">宽</label><input type="number" id="unfold-dim-w" value="3" min="0.5" max="100" step="any"></div>
+              <div class="dim-input-box"><label for="unfold-dim-h">高</label><input type="number" id="unfold-dim-h" value="2" min="0.5" max="100" step="any"></div>
             </div>
+          </div>
 
-            <!-- 6个面专属颜色图例 -->
-            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.4rem;">用颜色认出六个面：</div>
+          <details class="panel-card unfold-library" id="unfold-library" open>
+            <summary><span id="unfold-library-title">选一种展开图 · 共 11 种</span><span class="tag" id="unfold-current-pattern"></span></summary>
+            <p class="learning-note" id="unfold-library-note">旋转或翻转后能重合的展开图算同一种。</p>
+            <div class="categories-accordion" id="unfold-pattern-library"></div>
+          </details>
+
+          <div class="panel-card">
+            <div class="card-title"><span>点一个面，作为底面</span><span class="tag" id="unfold-base-label"></span></div>
+            <p class="learning-note">点击 A～F 中的任意一个面；换底面会重新展开，但编号、颜色和尺寸不变。虚线是折痕。</p>
+            <div class="unfold-canvas-2d-box" id="unfold-canvas-2d-box">
+              <div class="canvas-2d-toolbar">
+                <button class="canvas-2d-btn" id="btn-2d-zoomin" title="放大" aria-label="放大展开图">＋</button>
+                <button class="canvas-2d-btn" id="btn-2d-zoomout" title="缩小" aria-label="缩小展开图">－</button>
+                <button class="canvas-2d-btn" id="btn-2d-reset" title="居中" aria-label="展开图居中">⟲</button>
+              </div>
+              <div class="canvas-2d-drag-tip">点击选底面 · 拖动平移 · 按钮或滚轮缩放</div>
+              <div class="unfold-canvas-stage" id="unfold-canvas-stage"></div>
+            </div>
+            <button class="btn-outline" id="btn-unfold-recommended" style="margin-top:0.6rem;">使用推荐底面</button>
             <div class="faces-legend-grid" id="faces-legend-container"></div>
           </div>
 
           <div class="panel-card">
-            <div class="card-title">
-              <span>把六个面摊开看</span>
-              <span class="tag">拖动或缩放</span>
+            <div class="card-title"><span>先猜一猜：哪一面会成为顶面？</span></div>
+            <div class="unfold-prediction-row">
+              <label for="unfold-prediction">我的预测</label>
+              <select id="unfold-prediction"></select>
+              <button class="btn-outline" id="btn-unfold-check">核对答案</button>
             </div>
-            <div class="control-group">
-              <div class="unfold-canvas-2d-box" id="unfold-canvas-2d-box">
-                <div class="canvas-2d-toolbar">
-                  <button class="canvas-2d-btn" id="btn-2d-zoomin" title="放大">➕</button>
-                  <button class="canvas-2d-btn" id="btn-2d-zoomout" title="缩小">➖</button>
-                  <button class="canvas-2d-btn" id="btn-2d-reset" title="居中复位">⟲</button>
-                </div>
-                <div class="canvas-2d-drag-tip">✋ 拖动平移 · 滚轮或右上角按钮缩放</div>
-                <div class="unfold-canvas-stage" id="unfold-canvas-stage"></div>
-              </div>
-            </div>
+            <label class="views-check"><input type="checkbox" id="unfold-show-answers">显示方位和三组相对面</label>
+            <p class="learning-note" id="unfold-answer" aria-live="polite"></p>
+          </div>
 
-            <!-- 折叠进度条 -->
+          <div class="panel-card">
+            <div class="card-title"><span>沿折痕，一步一步折</span><span class="tag">底面始终固定</span></div>
+            <div class="btn-group">
+              <button class="btn-outline unfold-mode-btn active" data-mode="steps" aria-pressed="true">分步折叠</button>
+              <button class="btn-outline unfold-mode-btn" data-mode="together" aria-pressed="false">整体观察</button>
+            </div>
+            <div class="btn-group unfold-step-actions">
+              <button class="btn-outline" id="btn-unfold-prev" disabled>上一步</button>
+              <button class="btn-outline" id="btn-unfold-next">下一步</button>
+              <button class="btn-outline" id="btn-unfold-open">重新展开</button>
+            </div>
+            <label class="unfold-speed-label" for="unfold-speed">播放速度
+              <select id="unfold-speed"><option value="3.5">慢速</option><option value="2" selected>正常</option><option value="1">快速</option></select>
+            </label>
             <div class="control-group" style="margin-top:0.75rem;">
-              <div class="control-label">
-                <span>折叠进度（折痕转角 0°～90°）</span>
-                <span class="val" id="unfold-progress-val">0%</span>
-              </div>
-              <input aria-label="折叠进度" type="range" id="unfold-progress-slider" min="0" max="100" value="0">
+              <div class="control-label"><label for="unfold-progress-slider">拖动进度，停在任意位置</label><span class="val" id="unfold-progress-val">0 / 5 步</span></div>
+              <input type="range" id="unfold-progress-slider" min="0" max="1000" step="1" value="0">
             </div>
-
-            <!-- 智能状态检测横幅 -->
-            <div class="status-banner info" id="unfold-status-banner">
-              💡 正在就绪...
-            </div>
+            <div class="status-banner info" id="unfold-status-banner">请选择展开图和底面。</div>
+            <p class="learning-note">分步模式每次转动一条折痕，与它连接的面一起移动。整体模式同时转动各条折痕，便于比较展开和闭合。</p>
           </div>
 
-          <!-- 正方体全部 11 种展开图完整分类库 -->
-          <div class="panel-card">
-            <div class="card-title">
-              <span>认识正方体的 11 种展开图</span>
-              <span class="tag">点击换一种</span>
-            </div>
-
-            <div class="categories-accordion">
-              <!-- 分类 1: 一四一型 (共6种) -->
-              <div class="category-group-card">
-                <div class="category-title-row">
-                  <span>① “一四一”型（中间4个，两侧各1个）</span>
-                  <span class="count-badge">共 6 种</span>
-                </div>
-                <div class="category-btn-grid">
-                  <button class="net-pattern-btn active" data-id="141-1">1-4-1 样式①</button>
-                  <button class="net-pattern-btn" data-id="141-2">1-4-1 样式②</button>
-                  <button class="net-pattern-btn" data-id="141-3">1-4-1 样式③</button>
-                  <button class="net-pattern-btn" data-id="141-4">1-4-1 样式④</button>
-                  <button class="net-pattern-btn" data-id="141-5">1-4-1 样式⑤</button>
-                  <button class="net-pattern-btn" data-id="141-6">1-4-1 样式⑥</button>
-                </div>
-              </div>
-
-              <!-- 分类 2: 二三一型 / 一三二型 (共3种) -->
-              <div class="category-group-card">
-                <div class="category-title-row">
-                  <span>② “二三一”型 / “一三二”型（中间3个，一侧2个，另一侧1个）</span>
-                  <span class="count-badge">共 3 种</span>
-                </div>
-                <div class="category-btn-grid">
-                  <button class="net-pattern-btn" data-id="231-1">2-3-1 样式①</button>
-                  <button class="net-pattern-btn" data-id="231-2">2-3-1 样式②</button>
-                  <button class="net-pattern-btn" data-id="231-3">2-3-1 样式③</button>
-                </div>
-              </div>
-
-              <!-- 分类 3: 二二二型 (共1种) -->
-              <div class="category-group-card">
-                <div class="category-title-row">
-                  <span>③ “二二二”型（每行2个，阶梯错开）</span>
-                  <span class="count-badge">共 1 种</span>
-                </div>
-                <div class="category-btn-grid" style="grid-template-columns:1fr;">
-                  <button class="net-pattern-btn" data-id="222-1">2-2-2 阶梯步步高</button>
-                </div>
-              </div>
-
-              <!-- 分类 4: 三三型 (共1种) -->
-              <div class="category-group-card">
-                <div class="category-title-row">
-                  <span>④ “三三”型（两排各3个，错开2格）</span>
-                  <span class="count-badge">共 1 种</span>
-                </div>
-                <div class="category-btn-grid" style="grid-template-columns:1fr;">
-                  <button class="net-pattern-btn" data-id="33-1">3-3 错位对称型</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 长方体展开图外围周长计算器 -->
-          <div class="panel-card">
-            <div class="card-title">
-              <span>算算展开图的周长</span>
-              <span class="tag">与当前图形同步</span>
-            </div>
-            <div class="metric-card" id="perimeter-calc-result" style="width:100%;">
-              正在计算...
-            </div>
-          </div>
+          <details class="panel-card unfold-perimeter">
+            <summary>再探究：展开图的周长</summary>
+            <div class="metric-card" id="perimeter-calc-result" style="margin-top:0.75rem;">请选择展开图。</div>
+          </details>
         </div>
       </div>
     </section>

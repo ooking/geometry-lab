@@ -603,3 +603,24 @@
 .views-triple-display { gap: 0.4rem; }
 button:disabled { opacity: 0.45; cursor: default; }
 #views-camera-label { color: var(--accent-amber); font-size: 0.8rem; }
+
+/* Net teaching: preview first, select a fixed face, then follow the fold. */
+.net-preview-grid .net-pattern-btn { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 0.6rem 0.3rem; }
+.net-preview-grid svg { width: 100%; height: 68px; }
+.net-preview-grid .net-pattern-btn.active { outline: 2px solid var(--accent-amber); outline-offset: 1px; }
+.category-group-card .learning-note { font-size: 0.72rem; }
+#unfold-canvas-stage .net-rect-face { border-radius: 0; box-shadow: none; border: 1px solid rgba(255,255,255,0.7); font-size: 1rem; padding: 0; }
+#unfold-canvas-stage .net-rect-face.is-bottom { outline: 3px solid var(--accent-amber); outline-offset: -4px; z-index: 2; }
+#unfold-canvas-stage .net-rect-face.is-moving { box-shadow: inset 0 0 0 2px #fef08a; }
+.net-fold-lines { position: absolute; pointer-events: none; z-index: 3; overflow: visible; }
+.net-fold-lines line { stroke: #172033; stroke-width: 2; stroke-dasharray: 4 3; }
+.net-fold-lines line.is-active { stroke: #fbbf24; stroke-width: 4; stroke-dasharray: none; }
+.unfold-step-actions { margin-top: 0.75rem; }
+.unfold-speed-label, .unfold-prediction-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-muted); }
+.unfold-speed-label { margin-top: 0.75rem; }
+#panel-unfold select { background: var(--bg-primary); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem; font: inherit; }
+.unfold-perimeter summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+#faces-legend-container .face-legend-item { align-items: start; }
+.unfold-library summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+.unfold-library summary .tag { font-size: 0.7rem; color: var(--accent-blue); margin-left: 0.5rem; white-space: nowrap; }
+.unfold-library:not([open]) { padding-bottom: 1.15rem; }
