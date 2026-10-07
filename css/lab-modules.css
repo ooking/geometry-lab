@@ -624,3 +624,14 @@ button:disabled { opacity: 0.45; cursor: default; }
 .unfold-library summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
 .unfold-library summary .tag { font-size: 0.7rem; color: var(--accent-blue); margin-left: 0.5rem; white-space: nowrap; }
 .unfold-library:not([open]) { padding-bottom: 1.15rem; }
+
+.cube-dimension-row { grid-template-columns: 1fr; max-width: 150px; }
+#unfold-area-lesson[hidden], #unfold-volume-lesson[hidden] { display: none; }
+.unfold-face-areas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; margin: 0.6rem 0; }
+.unfold-area-face { background: var(--bg-primary); color: var(--text-main); border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 6px; padding: 0.5rem; text-align: left; font: inherit; font-size: 0.75rem; cursor: pointer; }
+.unfold-area-face[aria-pressed="true"] { outline: 2px solid var(--accent-blue); outline-offset: 1px; }
+#unfold-canvas-stage .net-rect-face.is-measured:not(.is-bottom) { outline: 3px solid var(--accent-blue); outline-offset: -4px; }
+.measure-formula { white-space: pre-line; overflow-wrap: anywhere; font-size: 0.8rem; line-height: 1.8; padding: 0.75rem; background: rgba(15, 23, 42, 0.5); border-radius: 8px; margin-top: 0.75rem; }
+.measure-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem; font-size: 0.85rem; margin-top: 0.75rem; }
+.measure-result strong { color: var(--accent-emerald); font-size: 1.35rem; overflow-wrap: anywhere; }
+.measure-scaling { border-left: 3px solid var(--accent-amber); padding-left: 0.75rem; margin-top: 0.9rem; font-size: 0.8rem; line-height: 1.7; color: var(--text-muted); }

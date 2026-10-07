@@ -6,6 +6,35 @@ document.addEventListener('DOMContentLoaded', () => {
   const panels = [...document.querySelectorAll('.tab-panel')];
   let activeName = null;
 
+  const header = document.querySelector('.header-bar');
+  let layoutFrame = null;
+  function updateStageLayout() {
+    const headerHeight = header.getBoundingClientRect().height;
+    document.documentElement.style.setProperty('--app-header-height', `${headerHeight}px`);
+    const panel = document.getElementById(`panel-${activeName}`);
+    const stage = panel?.querySelector('.stage-card');
+    if (!stage) return;
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    const chromeHeight = [...stage.children].filter(child => !child.classList.contains('stage-canvas-container'))
+      .reduce((sum, child) => sum + child.getBoundingClientRect().height, 0);
+    const desktop = window.matchMedia('(min-width: 1201px)').matches;
+    const available = desktop
+      ? viewportHeight - Math.max(stage.getBoundingClientRect().top, headerHeight + 12) - 16
+      : viewportHeight * 0.55 + chromeHeight;
+    const height = Math.round(Math.max(chromeHeight + 200, desktop ? available : Math.min(available, chromeHeight + 560)));
+    if (stage.style.height !== `${height}px`) stage.style.height = `${height}px`;
+  }
+  function scheduleStageLayout() {
+    if (layoutFrame !== null) return;
+    layoutFrame = requestAnimationFrame(() => { layoutFrame = null; updateStageLayout(); });
+  }
+  const layoutObserver = new ResizeObserver(scheduleStageLayout);
+  layoutObserver.observe(header);
+  document.querySelectorAll('.stage-header, .views-observe-toolbar, .lesson-prompt').forEach(element => layoutObserver.observe(element));
+  window.addEventListener('resize', scheduleStageLayout);
+  window.addEventListener('scroll', scheduleStageLayout, { passive: true });
+  window.visualViewport?.addEventListener('resize', scheduleStageLayout);
+
   function activate(name, focus = false) {
     if (!constructors[name]) return;
     activeName = name;
@@ -21,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Wait for the visible panel's layout, and disregard superseded navigation.
     requestAnimationFrame(() => {
       if (activeName !== name) return;
+      updateStageLayout();
       if (!labs.has(name)) {
         const container = document.getElementById(`canvas-${name}-container`);
         try {
@@ -81,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.addEventListener('fullscreenchange', () => {
       fullscreen.textContent = document.fullscreenElement ? '⛶ 退出全屏' : '⛶ 全屏演示';
+      updateStageLayout();
       labs.get(activeName)?.resize();
     });
   }

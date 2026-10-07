@@ -79,11 +79,18 @@
               <button class="btn-outline unfold-shape-type-btn active" data-shape="cube">正方体</button>
               <button class="btn-outline unfold-shape-type-btn" data-shape="cuboid">长方体</button>
             </div>
+            <div class="dimension-inputs-row cube-dimension-row" id="cube-dim-inputs-row" style="margin-top:0.75rem;">
+              <div class="dim-input-box"><label for="unfold-cube-edge">棱长 a</label><input type="number" id="unfold-cube-edge" value="1" min="0.1" max="100" step="any"></div>
+            </div>
             <div class="dimension-inputs-row" id="cuboid-dim-inputs-row" style="display:none;margin-top:0.75rem;">
               <div class="dim-input-box"><label for="unfold-dim-l">长</label><input type="number" id="unfold-dim-l" value="4" min="0.5" max="100" step="any"></div>
               <div class="dim-input-box"><label for="unfold-dim-w">宽</label><input type="number" id="unfold-dim-w" value="3" min="0.5" max="100" step="any"></div>
               <div class="dim-input-box"><label for="unfold-dim-h">高</label><input type="number" id="unfold-dim-h" value="2" min="0.5" max="100" step="any"></div>
             </div>
+            <label class="unfold-speed-label" for="unfold-length-unit">长度单位
+              <select id="unfold-length-unit"><option value="cm">厘米（cm）</option><option value="dm">分米（dm）</option><option value="m">米（m）</option></select>
+            </label>
+            <p class="learning-note">数值按所选单位填写。切换单位不换算数值；图形自动缩放，实际尺寸以标注为准。</p>
           </div>
 
           <details class="panel-card unfold-library" id="unfold-library" open>
@@ -139,6 +146,29 @@
             </div>
             <div class="status-banner info" id="unfold-status-banner">请选择展开图和底面。</div>
             <p class="learning-note">分步模式每次转动一条折痕，与它连接的面一起移动。整体模式同时转动各条折痕，便于比较展开和闭合。</p>
+          </div>
+
+          <div class="panel-card unfold-measures">
+            <div class="card-title"><span>算算表面积和体积</span><span class="tag">随尺寸变化</span></div>
+            <div class="btn-group" aria-label="选择计算内容">
+              <button class="btn-outline unfold-measure-btn active" data-measure="area" aria-pressed="true">表面积：六个面有多大</button>
+              <button class="btn-outline unfold-measure-btn" data-measure="volume" aria-pressed="false">体积：内部空间有多大</button>
+            </div>
+            <div id="unfold-area-lesson">
+              <p class="learning-note">先算一个面的面积，再把六个面加起来。点击面编号，在图中找出这个面。</p>
+              <div class="unfold-face-areas" id="unfold-face-areas"></div>
+              <div class="measure-formula" id="unfold-area-formula"></div>
+              <div class="measure-result">表面积 <strong id="unfold-area-result"></strong></div>
+              <p class="learning-note">表面积使用平方单位。换展开图或底面，六个面的面积总和不变。</p>
+            </div>
+            <div id="unfold-volume-lesson" hidden>
+              <p class="learning-note">把立体看成一层层相同的底面：底面积 × 垂直于底面的高度。</p>
+              <div class="measure-formula" id="unfold-volume-formula"></div>
+              <div class="measure-result">体积 <strong id="unfold-volume-result"></strong></div>
+              <p class="learning-note">体积使用立方单位。这里计算折成完整立体后的体积；换底面会改变底面积和高度的取法，体积不变。</p>
+              <button class="btn-outline" id="btn-unfold-show-solid">折到闭合，看完整立体</button>
+            </div>
+            <div class="measure-scaling" id="unfold-measure-scaling"></div>
           </div>
 
           <details class="panel-card unfold-perimeter">

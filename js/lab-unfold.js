@@ -5,6 +5,9 @@ class UnfoldLab {
     this.canvas2dBox = document.getElementById('unfold-canvas-2d-box');
     this.canvas2dStage = document.getElementById('unfold-canvas-stage');
     this.shapeType = 'cube';
+    this.cubeEdge = 1; this.lengthUnit = 'cm';
+    this.measureMode = 'area'; this.measureFace = null;
+    this.numberFormat = new Intl.NumberFormat('zh-CN', { maximumSignificantDigits: 12, useGrouping: false });
     this.dimL = 4; this.dimW = 3; this.dimH = 2;
     this.panX = 0; this.panY = 0; this.zoom = 1;
     this.foldProgress = 0; this.animating = false; this.animationTarget = 1;
@@ -21,6 +24,11 @@ class UnfoldLab {
     this.renderPatternLibrary();
     this.initUI();
     this.loadPatternById('141-1');
+    this.netResizeObserver = new ResizeObserver(() => {
+      const width = this.canvas2dBox.clientWidth;
+      if (width > 0 && width !== this.netViewportWidth) { this.netViewportWidth = width; this.reset2DView(); }
+    });
+    this.netResizeObserver.observe(this.canvas2dBox);
   }
 
   initThree() {
@@ -50,11 +58,25 @@ class UnfoldLab {
     LabUtils.startViewport(this, delta => { if (this.animating) this.stepAnimation(delta); });
   }
 
+  updateCameraAspect(aspect) {
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
+    if (!this.frameSize || !this.frameExtent) return;
+    const extent = Math.max(this.frameSize.x / Math.max(aspect, 0.1), this.frameSize.y, this.frameSize.z, 3);
+    const factor = extent / this.frameExtent;
+    if (Math.abs(factor - 1) > 1e-6) {
+      const target = this.controls?.target || this.defaultViewTarget;
+      this.camera.position.sub(target).multiplyScalar(factor).add(target);
+      this.defaultViewPosition.sub(this.defaultViewTarget).multiplyScalar(factor).add(this.defaultViewTarget);
+    }
+    this.frameExtent = extent;
+  }
+
   get pattern() { return this.patterns11[this.currentPatternId]; }
   getLabel(face) { return this.pattern.layout.find(item => item.face === face).label; }
 
   getEffectiveDims() {
-    if (this.shapeType === 'cube') return { l: 2, w: 2, h: 2, displayL: 1, displayW: 1, displayH: 1 };
+    if (this.shapeType === 'cube') return { l: 2, w: 2, h: 2, displayL: this.cubeEdge, displayW: this.cubeEdge, displayH: this.cubeEdge };
     const scale = 3.6 / Math.max(this.dimL, this.dimW, this.dimH);
     return { l: this.dimL * scale, w: this.dimW * scale, h: this.dimH * scale,
       displayL: this.dimL, displayW: this.dimW, displayH: this.dimH };
@@ -70,7 +92,7 @@ class UnfoldLab {
 
   getDimensionText(face) {
     const size = this.getFaceSize(face, true);
-    return `${size.w} × ${size.h}`;
+    return `${this.formatNumber(size.w)} × ${this.formatNumber(size.h)} ${this.lengthUnit}`;
   }
 
   getRole(face) {
@@ -126,6 +148,7 @@ class UnfoldLab {
   loadPatternById(id) {
     if (!this.patterns11[id]) return;
     this.currentPatternId = id;
+    this.measureFace = null;
     const degree = cell => this.pattern.layout.filter(other => Math.abs(cell.x - other.x) + Math.abs(cell.y - other.y) === 1).length;
     const centerX = this.pattern.layout.reduce((sum, item) => sum + item.x, 0) / 6;
     const centerY = this.pattern.layout.reduce((sum, item) => sum + item.y, 0) / 6;
@@ -276,6 +299,7 @@ class UnfoldLab {
     this.applyRawAngles(Array(5).fill(0));
     const center = bounds.getCenter(new THREE.Vector3()), size = bounds.getSize(new THREE.Vector3());
     const extent = Math.max(size.x / Math.max(this.camera.aspect, 0.1), size.y, size.z, 3);
+    this.frameSize = size; this.frameExtent = extent;
     const distance = extent / (2 * Math.tan(this.camera.fov * Math.PI / 360)) * 1.5;
     this.defaultViewTarget = center;
     this.defaultViewPosition = center.clone().add(new THREE.Vector3(0.4, 0.8, 1).normalize().multiplyScalar(distance));
@@ -303,7 +327,7 @@ class UnfoldLab {
     ctx.fillStyle = this.faceSpecs[face].color; ctx.fillRect(0, 0, 512, 256);
     ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = 'bold 110px sans-serif'; ctx.fillText(this.getLabel(face), 256, 88);
-    ctx.font = '36px sans-serif'; ctx.fillText(this.getDimensionText(face), 256, 171);
+    ctx.font = '36px sans-serif'; ctx.fillText(this.getDimensionText(face), 256, 171, 460);
     ctx.font = 'bold 32px sans-serif';
     if (face === this.baseFace || this.showAnswers) ctx.fillText(this.getRole(face), 256, 220);
     mesh.userData.labelTexture.needsUpdate = true;
@@ -430,12 +454,13 @@ class UnfoldLab {
       line.material.color.setHex(index === activeIndex ? 0xfbbf24 : 0xcbd5e1);
     });
     Object.entries(this.faceMeshes).forEach(([face, mesh]) => {
-      mesh.userData.border.material.color.setHex(face === this.baseFace ? 0xfbbf24 : moving.has(face) ? 0xfef08a : 0xffffff);
+      mesh.userData.border.material.color.setHex(face === this.baseFace ? 0xfbbf24 : moving.has(face) ? 0xfef08a : face === this.measureFace ? 0x38bdf8 : 0xffffff);
     });
     this.canvas2dStage.querySelectorAll('[data-face]').forEach(button => {
       const face = button.dataset.face, isBase = face === this.baseFace;
       button.classList.toggle('is-bottom', isBase);
       button.classList.toggle('is-moving', moving.has(face));
+      button.classList.toggle('is-measured', face === this.measureFace);
       button.setAttribute('aria-pressed', isBase);
       button.setAttribute('aria-label', `${this.getLabel(face)} 面${isBase ? '，当前底面' : '，点击设为底面'}`);
       button.textContent = `${this.getLabel(face)}${isBase ? ' · 底' : this.showAnswers && this.getRole(face) === '顶面' ? ' · 顶' : ''}`;
@@ -494,7 +519,7 @@ class UnfoldLab {
       const size = this.getFaceSize(item.face);
       perimeter -= 2 * (['top', 'bottom'].includes(item.edge) ? size.w : size.h) * scale;
     });
-    document.getElementById('perimeter-calc-result').textContent = `当前展开图周长：${Number(perimeter.toFixed(4))}。六个面的周长总和，减去 5 条折痕长度的两倍；换底面不改变周长。`;
+    document.getElementById('perimeter-calc-result').textContent = `当前展开图周长：${this.formatNumber(perimeter)} ${this.lengthUnit}。六个面的周长总和，减去 5 条折痕长度的两倍；换底面不改变周长。`;
     document.getElementById('unfold-current-pattern').textContent = `当前图 ${this.currentPatternId.replace('-', ' · ')}`;
     document.getElementById('unfold-library-title').textContent = this.shapeType === 'cube' ? '选一种展开图 · 共 11 种' : '选一种连接样式';
     document.getElementById('unfold-library-note').textContent = this.shapeType === 'cube'
@@ -529,11 +554,87 @@ class UnfoldLab {
       const feedback = this.prediction ? this.prediction === top ? '预测正确。' : `你选了 ${this.getLabel(this.prediction)}，可以再展开观察它的位置。` : '';
       answer.textContent = `${feedback}顶面是 ${this.getLabel(top)}。三组相对面：${pairs.join('；')}。换底面后，这三组相对关系保持不变。`;
     }
+    this.updateMeasures();
     Object.values(this.faceMeshes || {}).forEach(mesh => this.drawFaceLabel(mesh));
     this.applyFoldProgress(this.foldProgress);
   }
 
+  formatNumber(value) { return this.numberFormat.format(value); }
+
+  updateMeasures() {
+    const dims = this.getEffectiveDims(), f = value => this.formatNumber(value), unit = this.lengthUnit;
+    const l = dims.displayL, w = dims.displayW, h = dims.displayH;
+    const area = 2 * (l * w + l * h + w * h), volume = l * w * h;
+    document.getElementById('unfold-area-result').textContent = `${f(area)} ${unit}²`;
+    document.getElementById('unfold-volume-result').textContent = `${f(volume)} ${unit}³`;
+    document.getElementById('unfold-area-formula').textContent = this.shapeType === 'cube'
+      ? `① 每个面：a × a = ${f(l)} × ${f(l)} = ${f(l * l)} ${unit}²
+② 六个面：S = 6a² = 6 × ${f(l * l)} = ${f(area)} ${unit}²`
+      : `① 三种面面积：${f(l)} × ${f(w)} = ${f(l * w)} ${unit}²；${f(l)} × ${f(h)} = ${f(l * h)} ${unit}²；${f(w)} × ${f(h)} = ${f(w * h)} ${unit}²
+② 每种各有两个面：S = 2(长×宽 + 长×高 + 宽×高)
+= 2 × (${f(l * w)} + ${f(l * h)} + ${f(w * h)}) = ${f(area)} ${unit}²`;
+    const baseSize = this.getFaceSize(this.baseFace, true);
+    const originalBase = this.pattern.layout.find(item => item.face === this.baseFace);
+    const normalHeight = originalBase.n.reduce((sum, value, index) => sum + Math.abs(value) * [l, w, h][index], 0);
+    const baseArea = baseSize.w * baseSize.h;
+    document.getElementById('unfold-volume-formula').textContent =
+      `① 以 ${this.getLabel(this.baseFace)} 面为底：${f(baseSize.w)} × ${f(baseSize.h)} = ${f(baseArea)} ${unit}²
+` +
+      `② 垂直于底面的高度：${f(normalHeight)} ${unit}
+` +
+      `③ V = 底面积 × 高 = ${f(baseArea)} × ${f(normalHeight)} = ${f(volume)} ${unit}³
+` +
+      (this.shapeType === 'cube' ? `也就是 V = a³ = ${f(l)} × ${f(l)} × ${f(l)}。` : `也就是 V = 长 × 宽 × 高 = ${f(l)} × ${f(w)} × ${f(h)}。`);
+    const grid = document.getElementById('unfold-face-areas'); grid.innerHTML = '';
+    this.pattern.layout.slice().sort((a, b) => a.label.localeCompare(b.label)).forEach(item => {
+      const size = this.getFaceSize(item.face, true);
+      const button = document.createElement('button'); button.type = 'button';
+      button.className = 'unfold-area-face'; button.dataset.areaFace = item.face;
+      button.style.borderLeftColor = this.faceSpecs[item.face].color;
+      button.textContent = `${item.label} 面 · ${f(size.w * size.h)} ${unit}²`;
+      button.setAttribute('aria-pressed', item.face === this.measureFace);
+      button.addEventListener('click', () => {
+        this.measureFace = this.measureFace === item.face ? null : item.face;
+        grid.querySelectorAll('button').forEach(entry => entry.setAttribute('aria-pressed', entry.dataset.areaFace === this.measureFace));
+        this.applyFoldProgress(this.foldProgress);
+      });
+      grid.appendChild(button);
+    });
+    document.getElementById('unfold-measure-scaling').textContent =
+      `再想一想：所有长度都变成原来的 2 倍，表面积变为 4 倍（${f(area)} → ${f(area * 4)} ${unit}²），体积变为 8 倍（${f(volume)} → ${f(volume * 8)} ${unit}³）。`;
+  }
+
   initUI() {
+    document.getElementById('unfold-cube-edge').addEventListener('input', event => {
+      const input = event.target;
+      if (!input.validity.valid || !Number.isFinite(input.valueAsNumber)) return;
+      this.cubeEdge = input.valueAsNumber;
+      this.resetModel(false);
+    });
+    document.getElementById('unfold-length-unit').addEventListener('change', event => {
+      this.lengthUnit = event.target.value;
+      this.updateLesson();
+    });
+    document.querySelectorAll('.unfold-measure-btn').forEach(button => button.addEventListener('click', () => {
+      this.measureMode = button.dataset.measure;
+      document.querySelectorAll('.unfold-measure-btn').forEach(item => {
+        const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-pressed', active);
+      });
+      document.getElementById('unfold-area-lesson').hidden = this.measureMode !== 'area';
+      document.getElementById('unfold-volume-lesson').hidden = this.measureMode !== 'volume';
+      if (this.measureMode === 'volume') {
+        this.measureFace = null;
+        document.querySelectorAll('[data-area-face]').forEach(item => item.setAttribute('aria-pressed', 'false'));
+        this.applyFoldProgress(this.foldProgress);
+      }
+    }));
+    document.getElementById('btn-unfold-show-solid').addEventListener('click', () => {
+      if (this.foldMode === 'steps' && !this.sequenceAvailable) {
+        document.getElementById('unfold-status-banner').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      this.animateTo(1);
+    });
     let drag = null;
     this.canvas2dBox.addEventListener('pointerdown', event => {
       if (event.button !== 0 || event.target.closest('.canvas-2d-toolbar') || drag) return;
@@ -578,6 +679,7 @@ class UnfoldLab {
     document.querySelectorAll('.unfold-shape-type-btn').forEach(button => button.addEventListener('click', () => {
       this.shapeType = button.dataset.shape;
       document.querySelectorAll('.unfold-shape-type-btn').forEach(item => item.classList.toggle('active', item === button));
+      document.getElementById('cube-dim-inputs-row').style.display = this.shapeType === 'cube' ? 'grid' : 'none';
       document.getElementById('cuboid-dim-inputs-row').style.display = this.shapeType === 'cuboid' ? 'grid' : 'none';
       this.resetModel(false);
     }));
