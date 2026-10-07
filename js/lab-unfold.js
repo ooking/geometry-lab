@@ -9,6 +9,7 @@ class UnfoldLab {
     this.measureMode = 'area'; this.measureFace = null;
     this.numberFormat = new Intl.NumberFormat('zh-CN', { maximumSignificantDigits: 12, useGrouping: false });
     this.dimL = 4; this.dimW = 3; this.dimH = 2;
+    this.axisOrder = [0, 1, 2]; this.netRotation = 0; this.showFaceLabels = true;
     this.panX = 0; this.panY = 0; this.zoom = 1;
     this.foldProgress = 0; this.animating = false; this.animationTarget = 1;
     this.foldMode = 'steps'; this.stepSeconds = 2;
@@ -86,10 +87,16 @@ class UnfoldLab {
       displayL: this.dimL, displayW: this.dimW, displayH: this.dimH };
   }
 
-  getFaceSize(face, display = false) {
-    // Use the original face axes, so selecting another bottom never changes its dimensions.
-    const item = this.pattern.layout.find(cell => cell.face === face), dims = this.getEffectiveDims();
+  getAxisLengths(display = false) {
+    const dims = this.getEffectiveDims();
     const lengths = display ? [dims.displayL, dims.displayW, dims.displayH] : [dims.l, dims.w, dims.h];
+    return this.axisOrder.map(index => lengths[index]);
+  }
+
+  getFaceSize(face, display = false, pattern = this.pattern) {
+    // Assign dimensions once to the original axes; changing the base only changes folding roles.
+    const item = pattern.layout.find(cell => cell.face === face);
+    const lengths = this.getAxisLengths(display);
     const length = axis => axis.reduce((sum, value, index) => sum + Math.abs(value) * lengths[index], 0);
     return { w: length(item.u), h: length(item.v) };
   }
@@ -138,7 +145,8 @@ class UnfoldLab {
           svg.appendChild(rect);
         });
         const caption = document.createElement('span'); caption.textContent = `图 ${id.replace('-', ' · ')}`;
-        button.append(svg, caption);
+        const perimeter = document.createElement('span'); perimeter.className = 'net-pattern-perimeter';
+        button.append(svg, caption, perimeter);
         button.addEventListener('click', () => {
           this.loadPatternById(id, { fromSelection: true });
           document.getElementById('unfold-library').open = false;
@@ -211,11 +219,18 @@ class UnfoldLab {
       }
       positions[item.face] = { x, y, w, h };
     });
-    const values = Object.values(positions);
+    const displayPositions = Object.fromEntries(Object.entries(positions).map(([face, p]) => {
+      const center = this.rotateNetPoint(p.x + p.w / 2, p.y + p.h / 2);
+      const swap = this.netRotation % 180 !== 0;
+      const w = swap ? p.h : p.w, h = swap ? p.w : p.h;
+      return [face, { x: center.x - w / 2, y: center.y - h / 2, w, h }];
+    }));
+    const values = Object.values(displayPositions);
     const minX = Math.min(...values.map(p => p.x)), maxX = Math.max(...values.map(p => p.x + p.w));
     const minY = Math.min(...values.map(p => p.y)), maxY = Math.max(...values.map(p => p.y + p.h));
     this.netBounds = { width: maxX - minX, height: maxY - minY };
-    Object.entries(positions).forEach(([face, p]) => {
+    this.canvas2dStage.classList.toggle('hide-face-labels', !this.showFaceLabels);
+    Object.entries(displayPositions).forEach(([face, p]) => {
       const button = document.createElement('button'); button.type = 'button';
       button.className = 'net-rect-face'; button.dataset.face = face;
       button.style.left = `${p.x - (minX + maxX) / 2}px`; button.style.top = `${p.y - (minY + maxY) / 2}px`;
@@ -247,13 +262,30 @@ class UnfoldLab {
         x1 = x2 = parent.x + (item.edge === 'right' ? parent.w : 0);
       }
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); line.dataset.hinge = item.face;
-      Object.entries({ x1: x1 - minX, x2: x2 - minX, y1: y1 - minY, y2: y2 - minY })
+      const start = this.rotateNetPoint(x1, y1), end = this.rotateNetPoint(x2, y2);
+      Object.entries({ x1: start.x - minX, x2: end.x - minX, y1: start.y - minY, y2: end.y - minY })
         .forEach(([key, value]) => line.setAttribute(key, value));
       overlay.appendChild(line);
     });
     this.canvas2dStage.appendChild(overlay);
     this.reset2DView();
     if (oldFocus) this.canvas2dStage.querySelector(`[data-face="${oldFocus}"]`)?.focus({ preventScroll: true });
+  }
+
+  rotateNetPoint(x, y) {
+    // Quarter turns use exact coordinates and keep face labels upright.
+    if (this.netRotation === 90) return { x: -y, y: x };
+    if (this.netRotation === 180) return { x: -x, y: -y };
+    if (this.netRotation === 270) return { x: y, y: -x };
+    return { x, y };
+  }
+
+  setNetRotation(rotation) {
+    this.netRotation = (rotation + 360) % 360;
+    document.getElementById('unfold-net-rotation-label').textContent = this.netRotation === 0
+      ? '原始方向' : `逆时针 ${(360 - this.netRotation) % 360}°`;
+    this.render2DCanvas();
+    this.applyFoldProgress(this.foldProgress);
   }
 
   reset2DView() {
@@ -295,8 +327,7 @@ class UnfoldLab {
       const mesh = this.createFaceMesh(item.face, size.w, size.h);
       group.add(mesh); this.faceMeshes[item.face] = mesh;
     });
-    const dims = this.getEffectiveDims();
-    const cacheKey = `${this.currentPatternId}:${this.baseFace}:${dims.l}:${dims.w}:${dims.h}`;
+    const cacheKey = `${this.currentPatternId}:${this.baseFace}:${this.getAxisLengths().join(':')}`;
     let order = this.planCache.get(cacheKey);
     if (!order) {
       order = this.findFoldOrder();
@@ -409,11 +440,11 @@ class UnfoldLab {
     const face = mesh.userData.face, canvas = mesh.userData.labelCanvas, ctx = canvas.getContext('2d');
     ctx.drawImage(this.paperCanvas, 0, 0);
     ctx.fillStyle = this.faceSpecs[face].color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = 'bold 110px sans-serif'; ctx.fillText(this.getLabel(face), 256, 88);
+    if (this.showFaceLabels) { ctx.font = 'bold 110px sans-serif'; ctx.fillText(this.getLabel(face), 256, 88); }
     ctx.fillStyle = '#48341d';
     ctx.font = '36px sans-serif'; ctx.fillText(this.getDimensionText(face), 256, 171, 460);
     ctx.font = 'bold 32px sans-serif';
-    if (face === this.baseFace || this.showAnswers) ctx.fillText(this.getRole(face), 256, 220);
+    if (this.showFaceLabels && (face === this.baseFace || this.showAnswers)) ctx.fillText(this.getRole(face), 256, 220);
     mesh.userData.labelTexture.needsUpdate = true;
   }
 
@@ -527,6 +558,7 @@ class UnfoldLab {
 
   applyFoldProgress(progress) {
     this.foldProgress = Math.min(1, Math.max(0, progress));
+    document.getElementById('unfold-stage-perimeter-item').hidden = this.foldProgress >= 1 - 1e-7;
     const angles = this.getAngles(this.foldProgress); this.applyRawAngles(angles);
     const reversing = this.animating && this.animationTarget < this.foldProgress;
     const step = Math.max(0, Math.min(4, reversing ? Math.ceil(this.foldProgress * 5 - 1e-7) - 1 : Math.floor(this.foldProgress * 5 + 1e-7)));
@@ -596,13 +628,8 @@ class UnfoldLab {
   }
 
   updateLesson() {
-    const dims = this.getEffectiveDims();
-    let perimeter = 8 * (dims.displayL + dims.displayW + dims.displayH);
-    const scale = dims.displayL / dims.l;
-    this.pattern.layout.filter(item => item.parent).forEach(item => {
-      const size = this.getFaceSize(item.face);
-      perimeter -= 2 * (['top', 'bottom'].includes(item.edge) ? size.w : size.h) * scale;
-    });
+    const { perimeter } = this.getMeasurements();
+    this.updatePatternPerimeters();
     document.getElementById('perimeter-calc-result').textContent = `当前展开图周长：${this.formatNumber(perimeter)} ${this.lengthUnit}。六个面的周长总和，减去 5 条折痕长度的两倍；换底面不改变周长。`;
     document.getElementById('unfold-current-pattern').textContent = `当前图 ${this.currentPatternId.replace('-', ' · ')}`;
     document.getElementById('unfold-library-title').textContent = this.shapeType === 'cube' ? '选一种展开图 · 共 11 种' : '选一种连接样式';
@@ -643,12 +670,36 @@ class UnfoldLab {
     this.applyFoldProgress(this.foldProgress);
   }
 
+  updatePatternPerimeters() {
+    document.querySelectorAll('#unfold-pattern-library .net-pattern-btn').forEach(button => {
+      const pattern = this.patterns11[button.dataset.id];
+      const text = `周长 ${this.formatNumber(this.getMeasurements(pattern).perimeter)}${this.lengthUnit}`;
+      button.querySelector('.net-pattern-perimeter').textContent = text;
+      button.setAttribute('aria-label', `${pattern.name}，${text}`);
+    });
+  }
+
+  getMeasurements(pattern = this.pattern) {
+    const dims = this.getEffectiveDims();
+    const l = dims.displayL, w = dims.displayW, h = dims.displayH;
+    const area = 2 * (l * w + l * h + w * h), volume = l * w * h;
+    let perimeter = 8 * (l + w + h);
+    pattern.layout.filter(item => item.parent).forEach(item => {
+      const size = this.getFaceSize(item.face, true, pattern);
+      perimeter -= 2 * (['top', 'bottom'].includes(item.edge) ? size.w : size.h);
+    });
+    return { area, volume, perimeter };
+  }
+
   formatNumber(value) { return this.numberFormat.format(value); }
 
   updateMeasures() {
     const dims = this.getEffectiveDims(), f = value => this.formatNumber(value), unit = this.lengthUnit;
     const l = dims.displayL, w = dims.displayW, h = dims.displayH;
-    const area = 2 * (l * w + l * h + w * h), volume = l * w * h;
+    const { area, volume, perimeter } = this.getMeasurements();
+    document.getElementById('unfold-stage-volume').textContent = `${f(volume)} ${unit}³`;
+    document.getElementById('unfold-stage-area').textContent = `${f(area)} ${unit}²`;
+    document.getElementById('unfold-stage-perimeter').textContent = `${f(perimeter)} ${unit}`;
     document.getElementById('unfold-area-result').textContent = `${f(area)} ${unit}²`;
     document.getElementById('unfold-volume-result').textContent = `${f(volume)} ${unit}³`;
     document.getElementById('unfold-area-formula').textContent = this.shapeType === 'cube'
@@ -659,7 +710,8 @@ class UnfoldLab {
 = 2 × (${f(l * w)} + ${f(l * h)} + ${f(w * h)}) = ${f(area)} ${unit}²`;
     const baseSize = this.getFaceSize(this.baseFace, true);
     const originalBase = this.pattern.layout.find(item => item.face === this.baseFace);
-    const normalHeight = originalBase.n.reduce((sum, value, index) => sum + Math.abs(value) * [l, w, h][index], 0);
+    const axisLengths = this.getAxisLengths(true);
+    const normalHeight = originalBase.n.reduce((sum, value, index) => sum + Math.abs(value) * axisLengths[index], 0);
     const baseArea = baseSize.w * baseSize.h;
     document.getElementById('unfold-volume-formula').textContent =
       `① 以 ${this.getLabel(this.baseFace)} 面为底：${f(baseSize.w)} × ${f(baseSize.h)} = ${f(baseArea)} ${unit}²
@@ -690,6 +742,18 @@ class UnfoldLab {
   }
 
   initUI() {
+    document.getElementById('unfold-axis-order').addEventListener('change', event => {
+      this.axisOrder = [...event.target.value].map(Number);
+      this.measureFace = null; this.prediction = ''; this.showAnswers = false;
+      this.resetModel(false, this.foldProgress);
+    });
+    document.getElementById('btn-unfold-rotate-net').addEventListener('click', () => this.setNetRotation(this.netRotation - 90));
+    document.getElementById('btn-unfold-reset-net-rotation').addEventListener('click', () => this.setNetRotation(0));
+    document.getElementById('unfold-show-face-labels').addEventListener('change', event => {
+      this.showFaceLabels = event.target.checked;
+      this.canvas2dStage.classList.toggle('hide-face-labels', !this.showFaceLabels);
+      Object.values(this.faceMeshes).forEach(mesh => this.drawFaceLabel(mesh));
+    });
     document.getElementById('unfold-cube-edge').addEventListener('input', event => {
       const input = event.target;
       if (!input.validity.valid || !Number.isFinite(input.valueAsNumber)) return;
@@ -771,6 +835,7 @@ class UnfoldLab {
       document.querySelectorAll('.unfold-shape-type-btn').forEach(item => item.classList.toggle('active', item === button));
       document.getElementById('cube-dim-inputs-row').style.display = this.shapeType === 'cube' ? 'grid' : 'none';
       document.getElementById('cuboid-dim-inputs-row').style.display = this.shapeType === 'cuboid' ? 'grid' : 'none';
+      document.getElementById('unfold-axis-controls').hidden = this.shapeType !== 'cuboid';
       this.resetModel(false, this.foldProgress);
     }));
     const inputs = ['l', 'w', 'h'].map(axis => document.getElementById(`unfold-dim-${axis}`));

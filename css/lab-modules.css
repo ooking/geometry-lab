@@ -643,3 +643,20 @@ button:disabled { opacity: 0.45; cursor: default; }
 #faces-legend-container .face-legend-item { background: #c6a775; color: #48341d; }
 #faces-legend-container .face-letter { flex-shrink: 0; font-size: 0.95rem; }
 .unfold-area-face { background: #c6a775; color: #48341d; border-left-width: 1px; }
+
+/* General net controls and persistent geometry readings inside the 3D canvas. */
+#unfold-axis-controls[hidden], #unfold-stage-perimeter-item[hidden] { display: none; }
+.unfold-net-orientation { align-items: center; margin-bottom: 0.5rem; }
+.unfold-face-label-option { margin: 0.5rem 0 0.75rem; }
+#unfold-canvas-stage.hide-face-labels .face-letter,
+#unfold-canvas-stage.hide-face-labels .face-role { visibility: hidden; }
+#canvas-unfold-container .unfold-stage-metrics { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 4; display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; padding: 0.6rem 0.8rem; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(15,20,28,0.88); color: var(--text-muted); font-size: 0.8rem; pointer-events: none; }
+.unfold-stage-metrics > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem; }
+.unfold-stage-metrics strong { color: var(--accent-emerald); font-size: 1rem; overflow-wrap: anywhere; }
+.unfold-stage-metrics small { font-size: 0.65rem; color: var(--text-dim); }
+
+/* Keep each preview caption and perimeter on one line; allow narrow lists to scroll. */
+#unfold-pattern-library .net-preview-grid { grid-template-columns: repeat(3, minmax(max-content, 1fr)); overflow-x: auto; padding: 3px; }
+#unfold-pattern-library .net-pattern-btn > span { white-space: nowrap; }
+#unfold-pattern-library .net-pattern-btn > svg { width: 80px; max-width: 100%; }
+#unfold-pattern-library .net-pattern-perimeter { color: var(--accent-emerald); font-size: 0.72rem; }

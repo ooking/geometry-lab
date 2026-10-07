@@ -72,6 +72,11 @@
             </div>
           </div>
           <div class="stage-canvas-container" id="canvas-unfold-container">
+            <div class="unfold-stage-metrics" aria-label="当前物体的几何量">
+              <span>体积 <strong id="unfold-stage-volume"></strong><small>闭合立体</small></span>
+              <span>表面积 <strong id="unfold-stage-area"></strong></span>
+              <span id="unfold-stage-perimeter-item" hidden>展开图周长 <strong id="unfold-stage-perimeter"></strong></span>
+            </div>
             <div class="stage-overlay-tips">
               <span>🖱️ 拖动旋转 · 滚轮缩放</span>
               <span>🔤 A～F 对应右侧六个面</span>
@@ -95,6 +100,19 @@
               <div class="dim-input-box"><label for="unfold-dim-w">宽</label><input type="number" id="unfold-dim-w" value="3" min="0.5" max="100" step="any"></div>
               <div class="dim-input-box"><label for="unfold-dim-h">高</label><input type="number" id="unfold-dim-h" value="2" min="0.5" max="100" step="any"></div>
             </div>
+            <div id="unfold-axis-controls" hidden>
+              <label class="unfold-speed-label" for="unfold-axis-order">尺寸方向
+                <select id="unfold-axis-order">
+                  <option value="012">长 · 宽 · 高</option>
+                  <option value="021">长 · 高 · 宽</option>
+                  <option value="102">宽 · 长 · 高</option>
+                  <option value="120">宽 · 高 · 长</option>
+                  <option value="201">高 · 长 · 宽</option>
+                  <option value="210">高 · 宽 · 长</option>
+                </select>
+              </label>
+              <p class="learning-note">依次对应未旋转连接样式中 A 面的横边、竖边、垂直于 A 面的棱。只改变各面尺寸的分配，不交换上方长、宽、高输入值；换底面不改变该对应。</p>
+            </div>
             <label class="unfold-speed-label" for="unfold-length-unit">长度单位
               <select id="unfold-length-unit"><option value="cm">厘米（cm）</option><option value="dm">分米（dm）</option><option value="m">米（m）</option></select>
             </label>
@@ -110,6 +128,12 @@
           <div class="panel-card">
             <div class="card-title"><span>点一个面，作为底面</span><span class="tag" id="unfold-base-label"></span></div>
             <p class="learning-note">点击 A～F 中的任意一个面；换底面会重新展开，但编号、字母颜色和尺寸不变。虚线是折痕。</p>
+            <div class="btn-group unfold-net-orientation" aria-label="二维展开图方向">
+              <button type="button" class="btn-outline" id="btn-unfold-rotate-net">逆时针旋转90°</button>
+              <button type="button" class="btn-outline" id="btn-unfold-reset-net-rotation">恢复方向</button>
+              <span class="tag" id="unfold-net-rotation-label">原始方向</span>
+            </div>
+            <label class="views-check unfold-face-label-option"><input type="checkbox" id="unfold-show-face-labels" checked>显示面编号（二维与三维）</label>
             <div class="unfold-canvas-2d-box" id="unfold-canvas-2d-box">
               <div class="canvas-2d-toolbar">
                 <button class="canvas-2d-btn" id="btn-2d-zoomin" title="放大" aria-label="放大展开图">＋</button>
