@@ -63,15 +63,17 @@ class UnfoldLab {
   updateCameraAspect(aspect) {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
-    if (!this.frameSize || !this.frameExtent) return;
-    const extent = Math.max(this.frameSize.x / Math.max(aspect, 0.1), this.frameSize.y, this.frameSize.z, 3);
-    const factor = extent / this.frameExtent;
+    if (!this.frameBounds || !this.frameDistance) return;
+    const distance = this.getFramingDistance(aspect);
+    const factor = distance / this.frameDistance;
     if (Math.abs(factor - 1) > 1e-6) {
       const target = this.controls?.target || this.defaultViewTarget;
       this.camera.position.sub(target).multiplyScalar(factor).add(target);
       this.defaultViewPosition.sub(this.defaultViewTarget).multiplyScalar(factor).add(this.defaultViewTarget);
     }
-    this.frameExtent = extent;
+    this.frameDistance = distance;
+    this.camera.far = Math.max(200, distance + this.frameBounds.getSize(new THREE.Vector3()).length() * 2);
+    this.camera.updateProjectionMatrix();
   }
 
   get pattern() { return this.patterns11[this.currentPatternId]; }
@@ -138,7 +140,7 @@ class UnfoldLab {
         const caption = document.createElement('span'); caption.textContent = `图 ${id.replace('-', ' · ')}`;
         button.append(svg, caption);
         button.addEventListener('click', () => {
-          this.loadPatternById(id);
+          this.loadPatternById(id, { fromSelection: true });
           document.getElementById('unfold-library').open = false;
         });
         list.appendChild(button);
@@ -147,8 +149,9 @@ class UnfoldLab {
     });
   }
 
-  loadPatternById(id) {
+  loadPatternById(id, { fromSelection = false } = {}) {
     if (!this.patterns11[id]) return;
+    const unfoldAfterSelection = fromSelection && this.foldProgress >= 1 - 1e-7;
     this.currentPatternId = id;
     this.measureFace = null;
     const degree = cell => this.pattern.layout.filter(other => Math.abs(cell.x - other.x) + Math.abs(cell.y - other.y) === 1).length;
@@ -159,7 +162,15 @@ class UnfoldLab {
     this.recommendedBase = candidates[0].face;
     this.baseFace = this.recommendedBase;
     this.prediction = ''; this.showAnswers = false;
-    this.resetModel(true, 1);
+    this.resetModel(true, !fromSelection || unfoldAfterSelection ? 1 : 0);
+    if (unfoldAfterSelection) {
+      if (this.foldMode !== 'steps' || this.sequenceAvailable) this.animateTo(0);
+      else {
+        // Keep unavailable step paths static, consistent with the disabled playback control.
+        this.applyFoldProgress(0);
+        this.resetCamera(false, false);
+      }
+    }
     document.querySelectorAll('.net-pattern-btn').forEach(button => {
       const active = button.dataset.id === id;
       button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
@@ -301,20 +312,59 @@ class UnfoldLab {
     this.applyRawAngles(Array(5).fill(1));
     this.closedBounds = new THREE.Box3().setFromObject(this.rootFoldGroup);
     bounds.union(this.closedBounds);
+    // Include intermediate poses so moving panels have room throughout the demonstration.
+    for (let sample = 1; sample < 50; sample++) {
+      const progress = sample / 50;
+      const stepAngles = Array(5).fill(0);
+      this.foldOrder.forEach((index, step) => { stepAngles[index] = Math.min(1, Math.max(0, progress * 5 - step)); });
+      this.applyRawAngles(stepAngles);
+      bounds.union(new THREE.Box3().setFromObject(this.rootFoldGroup));
+      this.applyRawAngles(Array(5).fill(progress));
+      bounds.union(new THREE.Box3().setFromObject(this.rootFoldGroup));
+    }
     this.expandedBounds = bounds;
     this.applyRawAngles(Array(5).fill(0));
     this.resetCamera();
   }
 
-  updateFraming(folded) {
+  getFramingDistance(aspect) {
+    const center = this.frameBounds.getCenter(new THREE.Vector3());
+    const direction = this.frameDirection;
+    const up = this.frameTop ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0);
+    const right = new THREE.Vector3().crossVectors(up, direction).normalize();
+    const vertical = new THREE.Vector3().crossVectors(direction, right).normalize();
+    const tanVertical = Math.tan(this.camera.fov * Math.PI / 360);
+    const tanHorizontal = tanVertical * Math.max(aspect, 0.01);
+    // Leave generous margins around the closed solid; sheets also need space for motion.
+    const margin = this.frameFolded ? 1.65 : 1.25;
+    let distance = this.camera.near * 4;
+    for (const x of [this.frameBounds.min.x, this.frameBounds.max.x]) {
+      for (const y of [this.frameBounds.min.y, this.frameBounds.max.y]) {
+        for (const z of [this.frameBounds.min.z, this.frameBounds.max.z]) {
+          const point = new THREE.Vector3(x, y, z).sub(center);
+          const depth = point.dot(direction);
+          distance = Math.max(distance,
+            depth + margin * Math.abs(point.dot(right)) / tanHorizontal,
+            depth + margin * Math.abs(point.dot(vertical)) / tanVertical,
+            depth + this.camera.near * 4);
+        }
+      }
+    }
+    return distance;
+  }
+
+  updateFraming(folded, top = false) {
     const bounds = folded ? this.closedBounds : this.expandedBounds;
     if (!bounds) return;
-    const center = bounds.getCenter(new THREE.Vector3()), size = bounds.getSize(new THREE.Vector3());
-    const extent = Math.max(size.x / Math.max(this.camera.aspect, 0.1), size.y, size.z, 2);
-    this.frameSize = size; this.frameExtent = extent;
-    const distance = extent / (2 * Math.tan(this.camera.fov * Math.PI / 360)) * (folded ? 1.3 : 1.5);
-    this.defaultViewTarget = center;
-    this.defaultViewPosition = center.clone().add(new THREE.Vector3(0.6, 0.55, 1).normalize().multiplyScalar(distance));
+    this.frameBounds = bounds;
+    this.frameFolded = folded;
+    this.frameTop = top;
+    this.frameDirection = top ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0.6, 0.55, 1).normalize();
+    this.frameDistance = this.getFramingDistance(this.camera.aspect);
+    this.defaultViewTarget = bounds.getCenter(new THREE.Vector3());
+    this.defaultViewPosition = this.defaultViewTarget.clone().addScaledVector(this.frameDirection, this.frameDistance);
+    this.camera.far = Math.max(200, this.frameDistance + bounds.getSize(new THREE.Vector3()).length() * 2);
+    this.camera.updateProjectionMatrix();
   }
 
   createPaperTexture() {
@@ -368,15 +418,12 @@ class UnfoldLab {
   }
 
   resetCamera(top = false, folded = this.foldProgress >= 1) {
-    this.updateFraming(folded);
+    this.updateFraming(folded, top);
     if (!this.defaultViewTarget) return;
-    const target = top ? new THREE.Vector3(0, 0, 0) : this.defaultViewTarget;
+    const target = this.defaultViewTarget;
     this.camera.up.set(0, 1, 0);
-    if (top) {
-      this.camera.up.set(0, 0, -1);
-      const distance = this.defaultViewPosition.distanceTo(this.defaultViewTarget);
-      this.camera.position.set(0, distance, 0.001);
-    } else this.camera.position.copy(this.defaultViewPosition);
+    if (top) this.camera.up.set(0, 0, -1);
+    this.camera.position.copy(this.defaultViewPosition);
     // Recreate controls when the up direction changes, avoiding stale orbit axes and inertia.
     this.controls?.dispose();
     if (THREE.OrbitControls) {
@@ -560,8 +607,8 @@ class UnfoldLab {
     document.getElementById('unfold-current-pattern').textContent = `当前图 ${this.currentPatternId.replace('-', ' · ')}`;
     document.getElementById('unfold-library-title').textContent = this.shapeType === 'cube' ? '选一种展开图 · 共 11 种' : '选一种连接样式';
     document.getElementById('unfold-library-note').textContent = this.shapeType === 'cube'
-      ? '旋转或翻转后能重合的展开图算同一种。先看缩略图，再选择一种进行折叠。'
-      : '这里沿用正方体的 11 种连接样式，并按长方体尺寸调整各个面；不表示长方体只有 11 种展开图。';
+      ? '旋转或翻转后能重合的展开图算同一种。立体闭合时，点任意缩略图会自动播放展开；展开后可选择底面，再分步折叠。'
+      : '这里沿用正方体的 11 种连接样式，并按长方体尺寸调整各个面；不表示长方体只有 11 种展开图。立体闭合时选图，会自动播放展开；分步路径不可用时直接显示展开图。';
     document.getElementById('unfold-base-label').textContent = `${this.getLabel(this.baseFace)} 面${this.baseFace === this.recommendedBase ? '（推荐）' : ''}`;
     const selector = document.getElementById('unfold-prediction'); selector.innerHTML = '';
     const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = '先选一个面'; selector.appendChild(placeholder);
@@ -713,6 +760,7 @@ class UnfoldLab {
       this.foldMode = button.dataset.mode; this.animating = false; this.animationTarget = 1;
       document.querySelectorAll('.unfold-mode-btn').forEach(item => { const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-pressed', active); });
       this.applyFoldProgress(0);
+      this.resetCamera(false, false);
     }));
     document.getElementById('unfold-speed').addEventListener('change', event => { this.stepSeconds = Number(event.target.value); });
     document.getElementById('unfold-prediction').addEventListener('change', event => { this.prediction = event.target.value; this.showAnswers = false; this.updateLesson(); });
