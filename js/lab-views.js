@@ -1,441 +1,439 @@
-/**
- * ===================================================================
- * 模块 2: 通用小立方块堆叠与三视图生成器 (Universal Voxel & Projections Studio)
- * 通用算法：支持 3x3 / 4x4 空间自由搭建、动态正射投影三视图、
- * 通用逆推算法（给定主视图与左视图，求解小立方块最多与最少数量及形态切换）
- * ===================================================================
- */
-
+/** 方块搭建：连续立柱、六方向正投影、相同主视图和左视图下的数量比较。 */
 class ViewsLab {
   constructor() {
     this.container = document.getElementById('canvas-views-container');
-    this.scene = null;
-    this.camera = null;
-    this.renderer = null;
-    this.controls = null;
-    this.cubeGroup = null;
-
-    // 当前网格大小: 3 或 4
-    this.gridSize = 3;
-    // 存储高度矩阵 (行 r: 后到前, 列 c: 左到右)
-    this.heights = [];
-    this.initHeights(3);
-
+    this.rows = 3;
+    this.cols = 3;
+    this.maxHeight = 10;
+    this.maxSize = 10;
+    this.heights = Array.from({ length: this.rows }, () => Array(this.cols).fill(0));
+    this.selected = { r: 0, c: 0 };
+    this.history = [];
+    this.viewMode = 'three';
+    this.direction = null;
+    this.showDirections = false;
+    this.showHeights = false;
+    this.directions = {
+      front: { label: '前', vector: [0, 0, 1], up: [0, 1, 0] },
+      back: { label: '后', vector: [0, 0, -1], up: [0, 1, 0] },
+      left: { label: '左', vector: [-1, 0, 0], up: [0, 1, 0] },
+      right: { label: '右', vector: [1, 0, 0], up: [0, 1, 0] },
+      top: { label: '上', vector: [0, 1, 0], up: [0, 0, -1] },
+      bottom: { label: '下', vector: [0, -1, 0], up: [0, 0, 1] }
+    };
     this.initThree();
     this.initUI();
-    this.loadDemoPattern('stepped');
-  }
-
-  initHeights(size) {
-    this.gridSize = size;
-    this.heights = [];
-    for (let r = 0; r < size; r++) {
-      const row = [];
-      for (let c = 0; c < size; c++) {
-        row.push(0);
-      }
-      this.heights.push(row);
-    }
+    this.loadDemoPattern('stepped', false);
   }
 
   initThree() {
-    if (!this.container) return;
     const width = this.container.clientWidth || 600;
     const height = this.container.clientHeight || 480;
-
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0c121a);
-
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    this.camera.position.set(6.5, 7.5, 7.5);
-
+    this.perspective = new THREE.PerspectiveCamera(45, width / height, 0.1, 300);
+    this.orthographic = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 300);
+    this.camera = this.perspective;
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
     this.container.appendChild(this.renderer.domElement);
-
-    if (window.THREE && THREE.OrbitControls) {
-      this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-      this.controls.enableDamping = true;
-      this.controls.dampingFactor = 0.05;
-      this.controls.target.set(0, 0.5, 0);
-    }
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
-    this.scene.add(ambientLight);
-
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(6, 12, 8);
-    dirLight.castShadow = true;
-    this.scene.add(dirLight);
-
-    this.gridHelper = new THREE.GridHelper(this.gridSize, this.gridSize, 0x0284c7, 0x1e293b);
-    this.gridHelper.position.y = -0.01;
-    this.scene.add(this.gridHelper);
-
-    this.createDirectionLabels();
-
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const light = new THREE.DirectionalLight(0xffffff, 0.85);
+    light.position.set(6, 12, 8);
+    this.scene.add(light);
     this.cubeGroup = new THREE.Group();
-    this.scene.add(this.cubeGroup);
+    this.directionGroup = new THREE.Group();
+    this.scene.add(this.cubeGroup, this.directionGroup);
+    LabUtils.startViewport(this);
+  }
 
-    const animate = () => {
-      requestAnimationFrame(animate);
-      if (this.controls) this.controls.update();
-      this.renderer.render(this.scene, this.camera);
-    };
-    animate();
-
-    window.addEventListener('resize', () => {
-      if (!this.container || !this.renderer) return;
-      const w = this.container.clientWidth;
-      const h = this.container.clientHeight;
-      this.camera.aspect = w / h;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(w, h);
+  createControls(target) {
+    this.controls?.dispose();
+    this.camera.lookAt(target);
+    if (!THREE.OrbitControls) return;
+    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.target.copy(target);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.update();
+    this.controls.addEventListener('change', () => {
+      if (!this.direction) return;
+      const actual = this.camera.position.clone().sub(this.controls.target).normalize();
+      const expected = new THREE.Vector3(...this.directions[this.direction].vector);
+      if (actual.dot(expected) < 0.9999) {
+        this.direction = null;
+        this.updateDirectionUI();
+      }
     });
   }
 
-  createDirectionLabels() {
-    const createSign = (text, pos, color) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 64;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = color;
-      ctx.font = 'bold 30px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 64, 32);
+  getMaxHeight() { return Math.max(0, ...this.heights.flat()); }
 
-      const texture = new THREE.CanvasTexture(canvas);
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
-      sprite.position.copy(pos);
-      sprite.scale.set(1.6, 0.8, 1);
-      this.scene.add(sprite);
-    };
+  updateCameraAspect(aspect) {
+    this.perspective.aspect = aspect;
+    this.perspective.updateProjectionMatrix();
+    const height = this.getMaxHeight();
+    let viewWidth = this.cols, viewHeight = Math.max(height, 1);
+    if (this.direction === 'left' || this.direction === 'right') viewWidth = this.rows;
+    if (this.direction === 'top' || this.direction === 'bottom') viewHeight = this.rows;
+    if (!this.direction) viewWidth = viewHeight = Math.max(this.rows, this.cols, height, 3);
+    const halfHeight = Math.max(viewHeight, viewWidth / aspect) * 0.65 + 0.5;
+    this.orthographic.left = -halfHeight * aspect;
+    this.orthographic.right = halfHeight * aspect;
+    this.orthographic.top = halfHeight;
+    this.orthographic.bottom = -halfHeight;
+    this.orthographic.updateProjectionMatrix();
+  }
 
-    createSign('正面 (主视)', new THREE.Vector3(0, 0.2, 2.4), '#38bdf8');
-    createSign('左面 (左视)', new THREE.Vector3(-2.4, 0.2, 0), '#34d399');
+  setView(direction = null) {
+    this.direction = direction;
+    const height = this.getMaxHeight();
+    const target = new THREE.Vector3(0, Math.max(height, 1) / 2, 0);
+    const extent = Math.max(this.rows, this.cols, height, 3);
+    const distance = extent * 2 + 4;
+    if (direction) {
+      this.camera = this.orthographic;
+      this.camera.zoom = 1;
+      this.camera.up.set(...this.directions[direction].up);
+      this.camera.position.copy(target).add(new THREE.Vector3(...this.directions[direction].vector).multiplyScalar(distance));
+    } else {
+      this.camera = this.perspective;
+      this.camera.up.set(0, 1, 0);
+      const aspect = this.container.clientWidth / Math.max(this.container.clientHeight, 1);
+      const fitDistance = distance / Math.min(1, aspect);
+      this.camera.position.copy(target).add(new THREE.Vector3(0.65, 0.75, 0.8).multiplyScalar(fitDistance));
+    }
+    this.fittedHeight = height;
+    this.fittedExtent = extent;
+    this.createControls(target);
+    this.resize();
+    this.updateDirectionUI();
+  }
+
+  updateDirectionUI() {
+    document.querySelectorAll('.views-direction-btn').forEach(button => {
+      const active = (button.dataset.direction || null) === this.direction;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', active);
+    });
+    document.querySelectorAll('[data-projection]').forEach(card => {
+      card.classList.toggle('is-observed', card.dataset.projection === this.direction);
+    });
+    const status = document.getElementById('views-camera-label');
+    if (status) status.textContent = this.direction ? `从${this.directions[this.direction].label}面观察` : '自由观察';
   }
 
   rebuild3DCubes() {
-    while (this.cubeGroup.children.length > 0) {
-      this.cubeGroup.remove(this.cubeGroup.children[0]);
+    LabUtils.disposeGroup(this.cubeGroup);
+    if (this.gridHelper) {
+      this.scene.remove(this.gridHelper);
+      this.gridHelper.geometry.dispose();
+      this.gridHelper.material.dispose();
     }
-
-    const cubeGeo = new THREE.BoxGeometry(0.96, 0.96, 0.96);
-    const edgesGeo = new THREE.EdgesGeometry(cubeGeo);
-    const baseMat = new THREE.MeshStandardMaterial({
-      color: 0x3b82f6,
-      roughness: 0.35,
-      metalness: 0.1
-    });
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x1e3a8a, linewidth: 2 });
-
-    const offset = (this.gridSize - 1) / 2;
-
-    for (let r = 0; r < this.gridSize; r++) {
-      for (let c = 0; c < this.gridSize; c++) {
-        const count = this.heights[r][c];
-        const x = c - offset;
-        const z = r - offset;
-
-        for (let h = 0; h < count; h++) {
-          const y = h + 0.5;
-          const cube = new THREE.Mesh(cubeGeo, baseMat.clone());
-          cube.position.set(x, y, z);
-          cube.castShadow = true;
-          cube.receiveShadow = true;
-
-          const wireframe = new THREE.LineSegments(edgesGeo, lineMat);
-          cube.add(wireframe);
-          this.cubeGroup.add(cube);
-        }
+    const lines = [];
+    for (let c = 0; c <= this.cols; c++) {
+      const x = c - this.cols / 2;
+      lines.push(x, -0.01, -this.rows / 2, x, -0.01, this.rows / 2);
+    }
+    for (let r = 0; r <= this.rows; r++) {
+      const z = r - this.rows / 2;
+      lines.push(-this.cols / 2, -0.01, z, this.cols / 2, -0.01, z);
+    }
+    const gridGeometry = new THREE.BufferGeometry();
+    gridGeometry.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
+    this.gridHelper = new THREE.LineSegments(gridGeometry, new THREE.LineBasicMaterial({ color: 0x334155 }));
+    this.scene.add(this.gridHelper);
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const edges = new THREE.EdgesGeometry(geometry);
+    const material = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.45 });
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x1e3a8a });
+    this.heights.forEach((row, r) => row.forEach((count, c) => {
+      for (let h = 0; h < count; h++) {
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(c - (this.cols - 1) / 2, h + 0.5, r - (this.rows - 1) / 2);
+        cube.add(new THREE.LineSegments(edges, lineMaterial));
+        this.cubeGroup.add(cube);
       }
-    }
+    }));
+    const marker = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({
+      color: 0xfbbf24, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false
+    }));
+    marker.rotation.x = -Math.PI / 2;
+    marker.position.set(this.selected.c - (this.cols - 1) / 2,
+      this.heights[this.selected.r][this.selected.c] + 0.01, this.selected.r - (this.rows - 1) / 2);
+    this.cubeGroup.add(marker);
+    this.rebuildDirectionMarkers();
+  }
+
+  rebuildDirectionMarkers() {
+    LabUtils.disposeGroup(this.directionGroup);
+    const height = this.getMaxHeight();
+    Object.values(this.directions).forEach(({ label, vector }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, 64, 32);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), depthTest: false }));
+      const reach = vector[0] ? this.cols / 2 + 0.8 : vector[2] ? this.rows / 2 + 0.8 : Math.max(height, 1) / 2 + 0.8;
+      sprite.position.set(0, Math.max(height, 1) / 2, 0).add(new THREE.Vector3(...vector).multiplyScalar(reach));
+      sprite.scale.set(1, 0.5, 1);
+      this.directionGroup.add(sprite);
+    });
+    this.directionGroup.visible = this.showDirections;
+  }
+
+  saveHistory() {
+    this.history.push({ heights: this.heights.map(row => [...row]), selected: { ...this.selected } });
+    if (this.history.length > 30) this.history.shift();
+  }
+
+  clearPreset() {
+    document.querySelectorAll('.views-demo-btn').forEach(button => button.classList.remove('active'));
+  }
+
+  setSelectedHeight(height) {
+    if (!Number.isInteger(height) || height < 0 || height > this.maxHeight) return;
+    const { r, c } = this.selected;
+    if (this.heights[r][c] === height) return;
+    this.saveHistory();
+    this.heights[r][c] = height;
+    this.clearPreset();
+    this.syncUpdate();
+  }
+
+  resizeBoard(rows, cols) {
+    if (![rows, cols].every(value => Number.isInteger(value) && value >= 1 && value <= this.maxSize)) return;
+    if (rows === this.rows && cols === this.cols) return;
+    this.saveHistory();
+    const removed = this.heights.reduce((sum, row, r) => sum + row.reduce((total, count, c) =>
+      total + (r >= rows || c >= cols ? count : 0), 0), 0);
+    this.heights = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => this.heights[r]?.[c] || 0));
+    this.rows = rows; this.cols = cols;
+    this.selected.r = Math.min(this.selected.r, rows - 1);
+    this.selected.c = Math.min(this.selected.c, cols - 1);
+    this.clearPreset();
+    this.syncUpdate(true);
+    const message = document.getElementById('views-edit-status');
+    if (message) message.textContent = removed ? `缩小区域移除了 ${removed} 个方块，可点击“撤销上一步”恢复。` : '搭建区域已调整，原有方块已保留。';
   }
 
   renderTopViewMatrix() {
     const table = document.getElementById('topview-matrix-table');
-    if (!table) return;
     table.innerHTML = '';
-
-    for (let r = 0; r < this.gridSize; r++) {
+    this.heights.forEach((row, r) => {
       const tr = document.createElement('tr');
-      for (let c = 0; c < this.gridSize; c++) {
+      row.forEach((count, c) => {
         const td = document.createElement('td');
-        const count = this.heights[r][c];
-
-        const div = document.createElement('div');
-        div.className = 'topview-matrix-cell';
-        if (count > 0) div.classList.add('has-blocks');
-
-        const spanCoord = document.createElement('span');
-        spanCoord.className = 'cell-letter';
-        spanCoord.textContent = `${r+1},${c+1}`;
-        div.appendChild(spanCoord);
-
-        const spanNum = document.createElement('span');
-        spanNum.className = 'cell-num';
-        spanNum.textContent = count > 0 ? count : '·';
-        div.appendChild(spanNum);
-
-        div.title = `第 ${r+1} 排, 第 ${c+1} 列 (左键增高，右键降低)`;
-        div.addEventListener('click', () => {
-          this.heights[r][c] = (this.heights[r][c] + 1) % 6;
+        const button = document.createElement('button');
+        button.type = 'button'; button.dataset.cell = `${r},${c}`;
+        button.className = 'topview-matrix-cell';
+        const selected = r === this.selected.r && c === this.selected.c;
+        button.classList.toggle('has-blocks', count > 0);
+        button.classList.toggle('is-selected', selected);
+        button.setAttribute('aria-pressed', selected);
+        button.setAttribute('aria-label', `第 ${r + 1} 排第 ${c + 1} 列，${count} 块，点击选择`);
+        button.innerHTML = `<span class="cell-letter">${r + 1},${c + 1}</span><span class="cell-num">${count || '·'}</span>`;
+        button.addEventListener('click', () => {
+          this.selected = { r, c };
           this.syncUpdate();
         });
-        div.addEventListener('contextmenu', (e) => {
-          e.preventDefault();
-          this.heights[r][c] = Math.max(0, this.heights[r][c] - 1);
-          this.syncUpdate();
+        button.addEventListener('contextmenu', event => {
+          event.preventDefault(); this.selected = { r, c };
+          if (count) this.setSelectedHeight(count - 1);
+          else this.syncUpdate();
         });
-
-        td.appendChild(div);
-        tr.appendChild(td);
-      }
+        td.appendChild(button); tr.appendChild(td);
+      });
       table.appendChild(tr);
-    }
+    });
   }
 
-  syncUpdate() {
+  getProjections() {
+    return {
+      F: Array.from({ length: this.cols }, (_, c) => Math.max(...this.heights.map(row => row[c]))),
+      L: this.heights.map(row => Math.max(...row))
+    };
+  }
+
+  updateProjections() {
+    const { F, L } = this.getProjections();
+    const levels = Math.max(3, this.getMaxHeight());
+    const silhouette = heights => Array.from({ length: levels }, (_, r) => heights.map(h => h > levels - r - 1 ? 1 : 0));
+    this.renderProjectionSVG('front', silhouette(F), '#38bdf8');
+    this.renderProjectionSVG('back', silhouette([...F].reverse()), '#38bdf8');
+    this.renderProjectionSVG('left', silhouette(L), '#34d399');
+    this.renderProjectionSVG('right', silhouette([...L].reverse()), '#34d399');
+    this.renderProjectionSVG('top', this.heights, '#818cf8', this.showHeights);
+    this.renderProjectionSVG('bottom', [...this.heights].reverse(), '#818cf8', this.showHeights);
+    document.querySelectorAll('[data-projection]').forEach(card => {
+      card.hidden = this.viewMode === 'three' && ['back', 'right', 'bottom'].includes(card.dataset.projection);
+    });
+    document.getElementById('views-projection-note').textContent = this.viewMode === 'three'
+      ? '三视图：主视图、左视图、俯视图。选择方向按钮可对应观察；切换到六方向，可以比较相反方向的轮廓。'
+      : '六方向以搭建台为固定参照。前后、左右、上下的轮廓分别互为镜像；这里只画轮廓，不表示被遮挡的方块数量。';
+    this.updateDirectionUI();
+  }
+
+  renderProjectionSVG(direction, matrix, color, showNumbers = false) {
+    const svg = document.getElementById(`svg-${direction}-view`);
+    svg.innerHTML = '';
+    const cellSize = 30, gap = 2;
+    svg.setAttribute('viewBox', `0 0 ${matrix[0].length * (cellSize + gap) + gap} ${matrix.length * (cellSize + gap) + gap}`);
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = `从${this.directions[direction].label}面看的投影`;
+    svg.appendChild(title);
+    matrix.forEach((row, r) => row.forEach((value, c) => {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      const x = gap + c * (cellSize + gap), y = gap + r * (cellSize + gap);
+      Object.entries({ x, y, width: cellSize, height: cellSize, rx: 2,
+        fill: value ? color : 'rgba(255,255,255,0.03)', stroke: value ? '#ffffff' : 'rgba(255,255,255,0.15)' })
+        .forEach(([name, val]) => rect.setAttribute(name, val));
+      if (!value) rect.setAttribute('stroke-dasharray', '3,3');
+      svg.appendChild(rect);
+      if (value && showNumbers) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        Object.entries({ x: x + 15, y: y + 20, fill: '#fff', 'font-size': 13, 'text-anchor': 'middle' })
+          .forEach(([name, val]) => text.setAttribute(name, val));
+        text.textContent = value; svg.appendChild(text);
+      }
+    }));
+  }
+
+  analyzeExtremes() {
+    const { F, L } = this.getProjections();
+    const total = this.heights.flat().reduce((sum, value) => sum + value, 0);
+    const maximum = L.reduce((sum, height) => sum + F.reduce((n, front) => n + Math.min(height, front), 0), 0);
+    let minimum = 0;
+    for (let h = 1; h <= this.maxHeight; h++) minimum += h * Math.max(F.filter(v => v === h).length, L.filter(v => v === h).length);
+    const banner = document.getElementById('views-q16-banner');
+    banner.className = 'status-banner info';
+    banner.innerHTML = `<div>现在共有 <strong>${total}</strong> 个方块。<br>
+      保持主视图和左视图，最少可以用 <strong>${minimum}</strong> 个，最多可以用 <strong>${maximum}</strong> 个。<br>
+      <span class="learning-note">方块从底部连续堆叠，没有悬空；只固定这两个视图，俯视图可以变化。</span></div>`;
+  }
+
+  showExtreme(mode) {
+    const { F, L } = this.getProjections();
+    this.saveHistory();
+    this.heights = Array.from({ length: this.rows }, () => Array(this.cols).fill(0));
+    if (mode === 'max') this.heights = L.map(height => F.map(front => Math.min(height, front)));
+    else {
+      const maxColumn = F.indexOf(Math.max(...F)), maxRow = L.indexOf(Math.max(...L));
+      for (let h = 1; h <= this.maxHeight; h++) {
+        const rows = L.map((v, i) => v === h ? i : -1).filter(i => i >= 0);
+        const cols = F.map((v, i) => v === h ? i : -1).filter(i => i >= 0);
+        const paired = Math.min(rows.length, cols.length);
+        for (let i = 0; i < paired; i++) this.heights[rows[i]][cols[i]] = h;
+        rows.slice(paired).forEach(r => { this.heights[r][maxColumn] = h; });
+        cols.slice(paired).forEach(c => { this.heights[maxRow][c] = h; });
+      }
+    }
+    this.clearPreset(); this.syncUpdate();
+  }
+
+  loadDemoPattern(type, remember = true) {
+    const patterns = {
+      stepped: [[2, 1, 0], [0, 1, 3], [0, 0, 1]],
+      corner: [[3, 2, 1], [2, 1, 0], [1, 0, 0]],
+      'u-shape': [[2, 0, 2], [1, 0, 1], [2, 1, 2]]
+    };
+    if (!patterns[type]) return;
+    if (remember) this.saveHistory();
+    this.rows = Math.max(3, this.rows); this.cols = Math.max(3, this.cols);
+    this.heights = Array.from({ length: this.rows }, (_, r) => Array.from({ length: this.cols }, (_, c) => patterns[type][r]?.[c] || 0));
+    this.clearPreset();
+    document.querySelector(`.views-demo-btn[data-pattern="${type}"]`)?.classList.add('active');
+    this.syncUpdate(true);
+  }
+
+  syncUpdate(refit = false) {
+    const focusedCell = document.activeElement?.dataset.cell;
     this.rebuild3DCubes();
     this.renderTopViewMatrix();
     this.updateProjections();
     this.analyzeExtremes();
-  }
-
-  updateProjections() {
-    // 1. 正面主视图 (视线看各列 c = 0..size-1)
-    const frontHeights = [];
-    for (let c = 0; c < this.gridSize; c++) {
-      let maxH = 0;
-      for (let r = 0; r < this.gridSize; r++) {
-        maxH = Math.max(maxH, this.heights[r][c]);
-      }
-      frontHeights.push(maxH);
-    }
-
-    // 2. 左面左视图 (视线看各排 r = 0..size-1，后在左，前在右)
-    const leftHeights = [];
-    for (let r = 0; r < this.gridSize; r++) {
-      let maxH = 0;
-      for (let c = 0; c < this.gridSize; c++) {
-        maxH = Math.max(maxH, this.heights[r][c]);
-      }
-      leftHeights.push(maxH);
-    }
-
-    this.renderProjectionSVG('svg-front-view', frontHeights, '#38bdf8');
-    this.renderProjectionSVG('svg-left-view', leftHeights, '#34d399');
-    this.renderTopViewSVG('svg-top-view');
-  }
-
-  renderProjectionSVG(svgId, heightsArr, fillColor) {
-    const svg = document.getElementById(svgId);
-    if (!svg) return;
-    svg.innerHTML = '';
-
-    const cols = this.gridSize;
-    const maxRow = 4;
-    const cellSize = 30;
-    const gap = 3;
-    const width = cols * (cellSize + gap) + gap;
-    const height = maxRow * (cellSize + gap) + gap;
-
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-
-    for (let c = 0; c < cols; c++) {
-      const colHeight = Math.min(maxRow, heightsArr[c]);
-      for (let r = 0; r < maxRow; r++) {
-        const rowFromBottom = r;
-        const yIndex = maxRow - 1 - rowFromBottom;
-        const x = gap + c * (cellSize + gap);
-        const y = gap + yIndex * (cellSize + gap);
-
-        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        rect.setAttribute('x', x);
-        rect.setAttribute('y', y);
-        rect.setAttribute('width', cellSize);
-        rect.setAttribute('height', cellSize);
-        rect.setAttribute('rx', 4);
-
-        if (rowFromBottom < colHeight) {
-          rect.setAttribute('fill', fillColor);
-          rect.setAttribute('stroke', '#ffffff');
-          rect.setAttribute('stroke-width', '1.5');
-        } else {
-          rect.setAttribute('fill', 'rgba(255,255,255,0.04)');
-          rect.setAttribute('stroke', 'rgba(255,255,255,0.12)');
-          rect.setAttribute('stroke-dasharray', '3,3');
-        }
-        svg.appendChild(rect);
-      }
-    }
-  }
-
-  renderTopViewSVG(svgId) {
-    const svg = document.getElementById(svgId);
-    if (!svg) return;
-    svg.innerHTML = '';
-
-    const cols = this.gridSize;
-    const rows = this.gridSize;
-    const cellSize = 30;
-    const gap = 3;
-    const width = cols * (cellSize + gap) + gap;
-    const height = rows * (cellSize + gap) + gap;
-
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const x = gap + c * (cellSize + gap);
-        const y = gap + r * (cellSize + gap);
-        const count = this.heights[r][c];
-
-        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        rect.setAttribute('x', x);
-        rect.setAttribute('y', y);
-        rect.setAttribute('width', cellSize);
-        rect.setAttribute('height', cellSize);
-        rect.setAttribute('rx', 4);
-
-        if (count > 0) {
-          rect.setAttribute('fill', '#6366f1');
-          rect.setAttribute('stroke', '#ffffff');
-          rect.setAttribute('stroke-width', '1.5');
-          svg.appendChild(rect);
-
-          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-          text.setAttribute('x', x + cellSize / 2);
-          text.setAttribute('y', y + cellSize / 2 + 5);
-          text.setAttribute('fill', '#ffffff');
-          text.setAttribute('font-size', '13');
-          text.setAttribute('font-weight', 'bold');
-          text.setAttribute('text-anchor', 'middle');
-          text.textContent = count;
-          svg.appendChild(text);
-        } else {
-          rect.setAttribute('fill', 'rgba(255,255,255,0.03)');
-          rect.setAttribute('stroke', 'rgba(255,255,255,0.1)');
-          rect.setAttribute('stroke-dasharray', '3,3');
-          svg.appendChild(rect);
-        }
-      }
-    }
-  }
-
-  /**
-   * 通用三视图极值逆推引擎：
-   * 基于当前的主视图列高 F[c] 与左视图列高 L[r]，求解方块总数范围 [N_min, N_max]
-   */
-  analyzeExtremes() {
-    const F = [];
-    for (let c = 0; c < this.gridSize; c++) {
-      let m = 0;
-      for (let r = 0; r < this.gridSize; r++) m = Math.max(m, this.heights[r][c]);
-      F.push(m);
-    }
-
-    const L = [];
-    for (let r = 0; r < this.gridSize; r++) {
-      let m = 0;
-      for (let c = 0; c < this.gridSize; c++) m = Math.max(m, this.heights[r][c]);
-      L.push(m);
-    }
-
-    let currentTotal = 0;
-    for (let r = 0; r < this.gridSize; r++) {
-      for (let c = 0; c < this.gridSize; c++) currentTotal += this.heights[r][c];
-    }
-
-    // 理论最多方块数：所有位置取两个视图允许的最大上限 min(F[c], L[r])
-    let maxPossible = 0;
-    for (let r = 0; r < this.gridSize; r++) {
-      for (let c = 0; c < this.gridSize; c++) {
-        maxPossible += Math.min(F[c], L[r]);
-      }
-    }
-
-    // 理论最少方块数：利用贪心贪婪配对
-    // max(sum(F), sum(L)) 或 经典二分图覆盖
-    const sumF = F.reduce((a, b) => a + b, 0);
-    const sumL = L.reduce((a, b) => a + b, 0);
-    const minPossible = Math.max(sumF, sumL);
-
-    const banner = document.getElementById('views-q16-banner');
-    if (banner) {
-      banner.className = 'status-banner success';
-      banner.innerHTML = `
-        <div style="line-height:1.6;">
-          <div>📊 <strong>当前几何体方块总数</strong>：<span style="font-size:1.15rem;font-weight:bold;color:var(--accent-cyan);">${currentTotal}</span> 个</div>
-          <div>• 主视图各列高度：<strong>[${F.join(', ')}]</strong> | 左视图各列高度：<strong>[${L.join(', ')}]</strong></div>
-          <div>• <strong>最少方块数理论极限</strong>：约 <strong>${minPossible}</strong> 个（尽量共用立柱）</div>
-          <div>• <strong>最多方块数理论极限</strong>：最多 <strong>${maxPossible}</strong> 个（填满所有交叉上限）</div>
-        </div>
-      `;
-    }
-  }
-
-  loadDemoPattern(type) {
-    if (type === 'stepped') {
-      // 经典阶梯型
-      this.initHeights(3);
-      this.heights = [
-        [2, 1, 0],
-        [0, 1, 3],
-        [0, 0, 1]
-      ];
-    } else if (type === 'corner') {
-      this.initHeights(3);
-      this.heights = [
-        [3, 2, 1],
-        [2, 1, 0],
-        [1, 0, 0]
-      ];
-    } else if (type === 'u-shape') {
-      this.initHeights(3);
-      this.heights = [
-        [2, 0, 2],
-        [1, 0, 1],
-        [2, 1, 2]
-      ];
-    }
-    this.syncUpdate();
+    document.getElementById('views-rows').value = this.rows;
+    document.getElementById('views-cols').value = this.cols;
+    const { r, c } = this.selected, value = this.heights[r][c];
+    document.getElementById('views-selected-cell').textContent = `第 ${r + 1} 排，第 ${c + 1} 列`;
+    document.getElementById('views-cell-height').value = value;
+    document.getElementById('btn-views-add').disabled = value >= this.maxHeight;
+    document.getElementById('btn-views-remove').disabled = value <= 0;
+    document.getElementById('btn-views-undo').disabled = this.history.length === 0;
+    document.getElementById('views-edit-status').textContent = '';
+    if (focusedCell) document.querySelector(`[data-cell="${focusedCell}"]`)?.focus({ preventScroll: true });
+    document.querySelectorAll('[data-resize-axis]').forEach(button => {
+      const count = button.dataset.resizeAxis === 'rows' ? this.rows : this.cols;
+      const delta = Number(button.dataset.delta);
+      button.disabled = count + delta < 1 || count + delta > this.maxSize;
+    });
+    const extent = Math.max(this.rows, this.cols, this.getMaxHeight(), 3);
+    if (refit || (this.direction && this.fittedHeight !== this.getMaxHeight()) || extent > (this.fittedExtent || 0)) this.setView(this.direction);
   }
 
   initUI() {
-    const btnClear = document.getElementById('btn-clear-views');
-    if (btnClear) {
-      btnClear.addEventListener('click', () => {
-        this.initHeights(this.gridSize);
-        this.syncUpdate();
-      });
-    }
-
-    const demoBtns = document.querySelectorAll('.views-demo-btn');
-    demoBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        demoBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.loadDemoPattern(btn.dataset.pattern);
+    document.getElementById('btn-views-add').addEventListener('click', () => this.setSelectedHeight(this.heights[this.selected.r][this.selected.c] + 1));
+    document.getElementById('btn-views-remove').addEventListener('click', () => this.setSelectedHeight(this.heights[this.selected.r][this.selected.c] - 1));
+    document.getElementById('views-cell-height').addEventListener('change', event => {
+      const input = event.target;
+      if (input.validity.valid && Number.isInteger(input.valueAsNumber)) this.setSelectedHeight(input.valueAsNumber);
+      else input.value = this.heights[this.selected.r][this.selected.c];
+    });
+    document.getElementById('btn-views-size').addEventListener('click', () => {
+      const rows = document.getElementById('views-rows'), cols = document.getElementById('views-cols');
+      if (!rows.reportValidity() || !cols.reportValidity()) return;
+      this.resizeBoard(rows.valueAsNumber, cols.valueAsNumber);
+    });
+    ['views-rows', 'views-cols'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); document.getElementById('btn-views-size').click(); }
       });
     });
-
-    // 网格大小切换
-    const sizeBtns = document.querySelectorAll('.grid-size-btn');
-    sizeBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        sizeBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const s = parseInt(btn.dataset.size);
-        this.initHeights(s);
-        this.syncUpdate();
-      });
+    document.querySelectorAll('[data-resize-axis]').forEach(button => button.addEventListener('click', () => {
+      const delta = Number(button.dataset.delta);
+      this.resizeBoard(this.rows + (button.dataset.resizeAxis === 'rows' ? delta : 0),
+        this.cols + (button.dataset.resizeAxis === 'cols' ? delta : 0));
+    }));
+    document.getElementById('btn-views-undo').addEventListener('click', () => {
+      const previous = this.history.pop();
+      if (!previous) return;
+      this.heights = previous.heights; this.selected = previous.selected;
+      this.rows = this.heights.length; this.cols = this.heights[0].length;
+      this.clearPreset(); this.syncUpdate(true);
     });
+    document.getElementById('btn-clear-views').addEventListener('click', () => {
+      if (!this.heights.flat().some(Boolean)) return;
+      this.saveHistory(); this.heights = this.heights.map(row => row.map(() => 0));
+      this.clearPreset(); this.syncUpdate();
+    });
+    document.querySelectorAll('.views-demo-btn').forEach(button => button.addEventListener('click', () => this.loadDemoPattern(button.dataset.pattern)));
+    document.querySelectorAll('.views-direction-btn').forEach(button => button.addEventListener('click', () => {
+      const direction = button.dataset.direction || null;
+      if (direction && ['back', 'right', 'bottom'].includes(direction)) this.setProjectionMode('six');
+      this.setView(direction);
+    }));
+    document.querySelectorAll('.views-mode-btn').forEach(button => button.addEventListener('click', () => this.setProjectionMode(button.dataset.mode)));
+    document.getElementById('views-show-directions').addEventListener('change', event => {
+      this.showDirections = event.target.checked; this.directionGroup.visible = this.showDirections;
+    });
+    document.getElementById('views-show-heights').addEventListener('change', event => {
+      this.showHeights = event.target.checked; this.updateProjections();
+    });
+    document.getElementById('btn-views-min').addEventListener('click', () => this.showExtreme('min'));
+    document.getElementById('btn-views-max').addEventListener('click', () => this.showExtreme('max'));
+  }
+
+  setProjectionMode(mode) {
+    this.viewMode = mode;
+    document.querySelectorAll('.views-mode-btn').forEach(button => {
+      const active = button.dataset.mode === mode;
+      button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
+    });
+    if (mode === 'three' && ['back', 'right', 'bottom'].includes(this.direction)) this.setView('front');
+    this.updateProjections();
   }
 }
-
 window.ViewsLab = ViewsLab;

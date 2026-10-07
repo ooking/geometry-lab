@@ -43,6 +43,8 @@ class SectionLab {
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
     this.camera.position.set(4.8, 4.2, 5.2);
 
+    this.camera.lookAt(0, 0, 0);
+
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -85,28 +87,12 @@ class SectionLab {
     this.sectionLine = new THREE.Line(new THREE.BufferGeometry(), secLineMat);
     this.scene.add(this.sectionLine);
 
-    const animate = () => {
-      requestAnimationFrame(animate);
-      if (this.controls) this.controls.update();
-      this.renderer.render(this.scene, this.camera);
-    };
-    animate();
-
-    window.addEventListener('resize', () => {
-      if (!this.container || !this.renderer) return;
-      const w = this.container.clientWidth;
-      const h = this.container.clientHeight;
-      this.camera.aspect = w / h;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(w, h);
-    });
+    LabUtils.startViewport(this);
   }
 
   setSolidType(type) {
     this.solidType = type;
-    while (this.cubePivot.children.length > 0) {
-      this.cubePivot.remove(this.cubePivot.children[0]);
-    }
+    LabUtils.disposeGroup(this.cubePivot);
 
     let geom = null;
 
@@ -191,32 +177,33 @@ class SectionLab {
       if (v.y > maxY) maxY = v.y;
     });
 
-    const margin = 0.005;
-    const waterY = (minY + margin) + this.waterLevelRatio * (maxY - minY - 2 * margin);
+    const waterY = minY + this.waterLevelRatio * (maxY - minY);
 
     const intersections = [];
     const eps = 1e-5;
 
+    const addPoint = point => {
+      if (!intersections.some(existing => existing.distanceTo(point) < 1e-4)) intersections.push(point.clone());
+    };
     this.edges.forEach(([i1, i2]) => {
       const p1 = worldVerts[i1];
       const p2 = worldVerts[i2];
       const dy1 = p1.y - waterY;
       const dy2 = p2.y - waterY;
 
+      if (Math.abs(dy1) <= eps) addPoint(p1);
+      if (Math.abs(dy2) <= eps) addPoint(p2);
       if ((dy1 > eps && dy2 < -eps) || (dy1 < -eps && dy2 > eps)) {
         const t = (waterY - p1.y) / (p2.y - p1.y);
         if (t >= 0 && t <= 1) {
           const pt = new THREE.Vector3().lerpVectors(p1, p2, t);
-          if (!intersections.some(existing => existing.distanceTo(pt) < 1e-4)) {
-            intersections.push(pt);
-          }
+          addPoint(pt);
         }
       }
     });
 
-    const k = intersections.length;
     this.renderSectionPolygon(intersections, waterY);
-    this.updateAnalysisPanel(k, intersections);
+    this.updateAnalysisPanel(intersections.length, intersections);
   }
 
   renderSectionPolygon(points, waterY) {
@@ -274,7 +261,7 @@ class SectionLab {
 
     let shapeName = '无相交';
     let badgeClass = 'tri';
-    let detailText = '';
+    let detailText = '切面未形成有面积的多边形。';
 
     if (k === 3) {
       shapeName = '三角形';
@@ -296,7 +283,7 @@ class SectionLab {
 
     if (badge) {
       badge.className = `section-shape-badge ${badgeClass}`;
-      badge.textContent = `当前截面：${shapeName} (${k} 边形)`;
+      badge.textContent = k >= 3 ? `当前截面：${shapeName} (${k} 边)` : '当前截面：未形成多边形';
     }
 
     if (explanation) explanation.textContent = detailText;
@@ -305,34 +292,49 @@ class SectionLab {
   setPresetOrientation(type) {
     if (!this.cubePivot) return;
     this.cubePivot.rotation.set(0, 0, 0);
-
-    if (type === 'corner') {
-      this.cubePivot.rotation.x = Math.PI / 4;
-      this.cubePivot.rotation.z = Math.atan(1 / Math.SQRT2);
-    } else if (type === 'face') {
-      this.cubePivot.rotation.set(0, 0, 0);
+    if (type === 'corner' || type === 'hexagon') {
+      // Euler XYZ: these angles make the horizontal-plane normal parallel to a body diagonal.
+      this.cubePivot.rotation.x = Math.atan(1 / Math.SQRT2);
+      this.cubePivot.rotation.z = Math.PI / 4;
     } else if (type === 'edge') {
-      this.cubePivot.rotation.x = Math.PI / 4;
-    } else if (type === 'hexagon') {
-      this.cubePivot.rotation.x = Math.PI / 4;
-      this.cubePivot.rotation.z = Math.atan(1 / Math.SQRT2);
-      this.waterLevelRatio = 0.5;
-      const slider = document.getElementById('water-level-slider');
-      if (slider) slider.value = 50;
-      const label = document.getElementById('water-level-val');
-      if (label) label.textContent = '50%';
+      this.cubePivot.rotation.set(Math.PI / 6, 0, Math.PI / 9);
     }
-
+    this.waterLevelRatio = type === 'corner' ? 0.15 : type === 'edge' ? 0.35 : 0.5;
+    this.syncOrientationUI(type);
     this.updateSection();
   }
 
+  syncOrientationUI(preset = null) {
+    ['x', 'y', 'z'].forEach(axis => {
+      const slider = document.getElementById(`cube-rot-${axis}`);
+      const angle = this.cubePivot.rotation[axis] * 180 / Math.PI;
+      if (slider) slider.value = angle;
+      const output = document.getElementById(`cube-rot-${axis}-val`);
+      if (output) output.textContent = `${angle.toFixed(1)}°`;
+    });
+    const slider = document.getElementById('water-level-slider');
+    if (slider) slider.value = this.waterLevelRatio * 100;
+    const label = document.getElementById('water-level-val');
+    if (label) label.textContent = `${Math.round(this.waterLevelRatio * 100)}%`;
+    ['corner', 'face', 'edge', 'hexagon'].forEach(type => {
+      document.getElementById(`btn-preset-${type}`)?.classList.toggle('active', type === preset);
+    });
+    const hex = document.getElementById('btn-preset-hexagon');
+    if (hex) hex.textContent = this.solidType === 'cube' ? '🛑 中部对称（正六边形）' : '🛑 中部斜切（观察边数）';
+  }
+
   initUI() {
+    document.getElementById('btn-section-reset-cam')?.addEventListener('click', () => {
+      this.camera.position.set(4.8, 4.2, 5.2);
+      this.controls?.target.set(0, 0, 0);
+    });
     const slider = document.getElementById('water-level-slider');
     const label = document.getElementById('water-level-val');
     if (slider) {
       slider.addEventListener('input', (e) => {
         this.waterLevelRatio = parseFloat(e.target.value) / 100;
         if (label) label.textContent = `${e.target.value}%`;
+        this.syncOrientationUI();
         this.updateSection();
       });
     }
@@ -358,6 +360,7 @@ class SectionLab {
       const ry = (parseFloat(rotY?.value || 0) * Math.PI) / 180;
       const rz = (parseFloat(rotZ?.value || 0) * Math.PI) / 180;
       this.cubePivot.rotation.set(rx, ry, rz);
+      this.syncOrientationUI();
       this.updateSection();
     };
 

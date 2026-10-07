@@ -599,3 +599,40 @@ input[type="range"]::-webkit-slider-thumb:hover {
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   margin-top: auto;
 }
+
+/* Teaching controls remain usable on a projector, tablet, and keyboard. */
+button:focus-visible, input:focus-visible {
+  outline: 3px solid var(--accent-amber);
+  outline-offset: 3px;
+}
+button[hidden] { display: none; }
+.workspace-grid { grid-template-columns: minmax(0, 1fr) 420px; align-items: start; }
+.stage-card { min-width: 0; position: sticky; top: 90px; }
+.stage-canvas-container { height: min(65vh, 720px); flex: auto; }
+.stage-canvas-container canvas { position: absolute; inset: 0; }
+.stage-overlay-tips { z-index: 1; flex-wrap: wrap; right: 14px; }
+.stage-header, .stage-toolbar { flex-wrap: wrap; gap: 0.6rem; }
+.learning-note { color: var(--text-muted); font-size: 0.8rem; line-height: 1.6; margin: 0.4rem 0; }
+.lesson-prompt { color: var(--text-main); border-left: 3px solid var(--accent-blue); padding: 0.5rem 0.8rem; }
+.axis-control { font-size: 0.75rem; color: var(--text-muted); display: grid; gap: 0.5rem; }
+.viewport-error { padding: 2rem; color: #fde68a; }
+@media (max-width: 1200px) {
+  .workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  .stage-card { position: relative; top: auto; }
+  .header-bar { flex-wrap: wrap; gap: 0.75rem; }
+  .nav-tabs { order: 3; width: 100%; overflow-x: auto; }
+}
+@media (max-width: 600px) {
+  .header-bar { padding: 0.65rem; }
+  .main-container { padding: 0.75rem; }
+  .brand-text h1 { font-size: 0.95rem; }
+  .brand-text p { font-size: 0.65rem; }
+  .tab-btn { padding: 0.6rem 0.65rem; font-size: 0.8rem; }
+  .stage-header { padding: 0.75rem; }
+  .stage-canvas-container { min-height: 340px; height: 48vh; }
+  .panel-card { padding: 0.85rem; }
+  .stage-overlay-tips { font-size: 0.65rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
