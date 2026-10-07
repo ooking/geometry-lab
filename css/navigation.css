@@ -1,0 +1,13 @@
+/* A submenu can remain visible outside the navigation bar, including on mobile. */
+.nav-tabs { overflow: visible; flex-wrap: wrap; }
+.nav-module-group { display: flex; align-items: center; }
+.nav-tabs a { text-decoration: none; }
+.nav-submenu { position: relative; }
+.nav-submenu > summary { list-style: none; cursor: pointer; padding: 0.55rem 0.6rem; color: var(--text-muted); border-radius: 6px; }
+.nav-submenu > summary::-webkit-details-marker { display: none; }
+.nav-submenu > summary:hover, .nav-submenu[open] > summary { background: var(--bg-tertiary); color: var(--text-main); }
+.nav-submenu-links { position: absolute; top: calc(100% + 0.5rem); right: 0; z-index: 100; min-width: 190px; padding: 0.4rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.nav-submenu-links a { display: block; padding: 0.7rem; border-radius: 5px; font-size: 0.85rem; color: var(--text-main); white-space: nowrap; }
+.nav-submenu-links a:hover, .nav-submenu-links a[aria-current="page"] { background: var(--bg-tertiary); color: var(--accent-blue); }
+@media (max-width: 1200px) { .nav-tabs { overflow: visible; } .nav-submenu-links { left: auto; right: -0.5rem; } }
+@media (max-width: 480px) { .nav-submenu-links { left: -9rem; right: auto; } }

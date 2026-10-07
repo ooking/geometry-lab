@@ -18,3 +18,4 @@
 @media (max-width: 900px) {
   [data-teaching-application="packaging"] .packaging-grid { grid-template-columns: minmax(0, 1fr); }
 }
+.application-page-title { font-size: 1.3rem; margin: 0 0 0.5rem; }

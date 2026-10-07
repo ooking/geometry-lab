@@ -4,7 +4,7 @@ window.TeachingCuboid = {
     const surface = 2 * (l * w + l * h + w * h), extra = (lidLayers - 1) * l * w;
     return { surface, extra, paper: surface + extra, volume: l * w * h };
   },
-  // The same edge-connected topology supports both question 3-2 and its maximum example.
+  // The same edge-connected topology supports both a standard strip net and its maximum-perimeter orientation.
   stripNet(axes) {
     const cells = [[0, 0], [1, 0], [0, 1], [0, 2], [-1, 2], [0, 3]];
     const seed = { layout: cells.map(([x, y], i) => ({ x, y, face: `face-${i}`, label: 'ABCDEF'[i] })) };

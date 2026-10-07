@@ -1,7 +1,6 @@
 /** Navigation and lazy initialization for the teaching workspaces. */
 document.addEventListener('DOMContentLoaded', () => {
   const labs = new Map();
-  window.TeachingApplications?.mount();
   const constructors = { unfold: 'UnfoldLab', views: 'ViewsLab', section: 'SectionLab' };
   const tabs = [...document.querySelectorAll('.tab-btn')];
   const panels = [...document.querySelectorAll('.tab-panel')];
@@ -39,6 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function activate(name, focus = false) {
     if (!constructors[name]) return;
     activeName = name;
+    const unfoldLink = document.querySelector('.nav-submenu-links a[href="index.html#unfold"]');
+    if (name === 'unfold') unfoldLink?.setAttribute('aria-current', 'page');
+    else unfoldLink?.removeAttribute('aria-current');
     tabs.forEach(tab => {
       const active = tab.dataset.target === name;
       tab.classList.toggle('active', active);
@@ -48,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     panels.forEach(panel => panel.classList.toggle('active', panel.id === `panel-${name}`));
     labs.forEach(lab => lab.setActive(false));
-    window.TeachingApplications?.setWorkspace(name);
     // Wait for the visible panel's layout, and disregard superseded navigation.
     requestAnimationFrame(() => {
       if (activeName !== name) return;
@@ -97,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('visibilitychange', () => {
     labs.forEach((lab, name) => lab.setActive(name === activeName));
-    window.TeachingApplications?.setWorkspace(activeName);
   });
 
   const fullscreen = document.getElementById('btn-fullscreen');
@@ -118,5 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
       labs.get(activeName)?.resize();
     });
   }
-  activate(tabs.find(tab => tab.classList.contains('active'))?.dataset.target || 'unfold');
+  function activateFromLocation() {
+    const name = window.location.hash.slice(1);
+    activate(constructors[name] ? name : 'unfold');
+  }
+  window.addEventListener('hashchange', activateFromLocation);
+  activateFromLocation();
 });

@@ -1,22 +1,22 @@
 /** Packaging lesson configuration stays separate from reusable geometry and panel lifecycle. */
-window.PackagingLesson = Object.freeze({
+window.PackagingConfig = Object.freeze({
   dimensions: [5, 3, 4],
   steps: [
-    { id: 'single', title: '① 双层上盖用料', unit: 'cm' },
-    { id: 'compare', title: '② 两盒拼装对比', unit: 'dm' },
-    { id: 'perimeter', title: '③ 展开图周长', unit: 'm' }
+    { id: 'single', title: '上盖与纸板用料' },
+    { id: 'compare', title: '两盒拼装对比' },
+    { id: 'perimeter', title: '展开图周长' }
   ],
   methods: [
-    { axis: 1, title: '图2-2 · 沿宽拼接' },
-    { axis: 0, title: '图2-3 · 沿长拼接' },
-    { axis: 2, title: '图2-4 · 沿高叠放' }
+    { axis: 1, title: '沿宽拼接' },
+    { axis: 0, title: '沿长拼接' },
+    { axis: 2, title: '沿高叠放' }
   ]
 });
 
 class PackagingApplication {
   constructor(host) {
-    this.host = host; this.dims = [...PackagingLesson.dimensions]; this.step = 'single';
-    this.method = 1; this.netChoice = 'question'; this.unit = 'cm'; this.lidLayers = 2;
+    this.host = host; this.dims = [...PackagingConfig.dimensions]; this.step = 'single';
+    this.method = 1; this.netChoice = 'standard'; this.unit = 'cm'; this.lidLayers = 2;
     this.progress = 1; this.answers = false; this.active = false;
     this.number = new Intl.NumberFormat('zh-CN', { maximumSignificantDigits: 10, useGrouping: false });
     this.build(); this.render();
@@ -25,7 +25,7 @@ class PackagingApplication {
   build() {
     const content = document.createElement('div'); content.className = 'packaging-content';
     content.innerHTML = `
-      <p class="learning-note">以长5、宽3、高4的双层上盖纸箱为例。可改尺寸辅助讲解同类题；本面板的设置独立保存于当前页面。</p>
+      <p class="learning-note">设置长方体尺寸，观察上盖层数、拼装方向和展开方式怎样影响纸板用料与外周长。</p>
       <div class="btn-group" data-role="steps" aria-label="选择讲解内容"></div>
       <div class="packaging-grid">
         <div class="packaging-visuals">
@@ -44,12 +44,12 @@ class PackagingApplication {
           <div class="packaging-options">
             <label>单位 <select data-role="unit"><option value="cm">厘米</option><option value="dm">分米</option><option value="m">米</option></select></label>
             <label data-role="lid-option">上盖 <select data-role="lid"><option value="2">双层</option><option value="1">单层</option></select></label>
-            <button type="button" class="btn-outline" data-role="reset">恢复题目尺寸</button>
+            <button type="button" class="btn-outline" data-role="reset">恢复默认参数</button>
           </div>
           <p class="learning-note" data-role="input-note"></p>
           <div class="btn-group" data-role="methods" aria-label="选择两盒拼接方向"></div>
           <div class="btn-group" data-role="net-choices" aria-label="选择周长展开图">
-            <button type="button" class="btn-outline" data-net="question">题图3-2</button>
+            <button type="button" class="btn-outline" data-net="standard">常规展开图</button>
             <button type="button" class="btn-outline" data-net="maximum">最大周长示例</button>
           </div>
           <label class="views-check"><input data-role="answers" type="checkbox">显示计算过程与答案</label>
@@ -63,12 +63,12 @@ class PackagingApplication {
         </div>
       </div>`;
     this.host.append(content);
-    PackagingLesson.steps.forEach(step => {
+    PackagingConfig.steps.forEach(step => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'btn-outline'; button.textContent = step.title; button.dataset.step = step.id;
-      button.addEventListener('click', () => { this.step = step.id; this.unit = step.unit; this.progress = step.id === 'perimeter' ? 0 : 1; this.render(); });
+      button.addEventListener('click', () => { this.step = step.id; this.progress = step.id === 'perimeter' ? 0 : 1; this.render(); });
       this.$('[data-role="steps"]').append(button);
     });
-    PackagingLesson.methods.forEach(method => {
+    PackagingConfig.methods.forEach(method => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'btn-outline'; button.textContent = method.title; button.dataset.axis = method.axis;
       button.addEventListener('click', () => { this.method = method.axis; this.render(); });
       this.$('[data-role="methods"]').append(button);
@@ -82,8 +82,8 @@ class PackagingApplication {
     this.$('[data-role="lid"]').addEventListener('change', e => { this.lidLayers = Number(e.target.value); this.render(); });
     this.$('[data-role="answers"]').addEventListener('change', e => { this.answers = e.target.checked; this.render(); });
     this.$('[data-role="reset"]').addEventListener('click', () => {
-      this.dims = [...PackagingLesson.dimensions]; this.lidLayers = 2;
-      this.unit = PackagingLesson.steps.find(s => s.id === this.step).unit;
+      this.dims = [...PackagingConfig.dimensions]; this.lidLayers = 2;
+      this.unit = 'cm';
       this.host.querySelectorAll('[data-dimension]').forEach((input, i) => { input.value = this.dims[i]; }); this.render();
     });
     this.host.querySelectorAll('[data-net]').forEach(button => button.addEventListener('click', () => { this.netChoice = button.dataset.net; this.render(); }));
@@ -106,7 +106,7 @@ class PackagingApplication {
     const f = v => this.number.format(v), [l, w, h] = this.dims, unit = this.unit;
     const compare = this.step === 'compare', perimeter = this.step === 'perimeter';
     this.currentDims = this.dims.map((v, i) => compare && i === this.method ? v * 2 : v);
-    this.currentNet = perimeter ? TeachingCuboid.stripNet(this.netChoice === 'question' ? [l, h, w] : [...this.dims].sort((a, b) => a - b)) : TeachingCuboid.boxNet(this.currentDims);
+    this.currentNet = perimeter ? TeachingCuboid.stripNet(this.netChoice === 'standard' ? [l, h, w] : [...this.dims].sort((a, b) => a - b)) : TeachingCuboid.boxNet(this.currentDims);
     this.$('[data-role="unit"]').value = unit; this.$('[data-role="lid"]').value = this.lidLayers;
     this.$('[data-role="progress"]').value = this.progress * 100;
     this.$('[data-role="methods"]').hidden = !compare; this.$('[data-role="net-choices"]').hidden = !perimeter;
@@ -115,11 +115,11 @@ class PackagingApplication {
       const active = button.dataset.step ? button.dataset.step === this.step : button.dataset.axis !== undefined ? Number(button.dataset.axis) === this.method : button.dataset.net === this.netChoice;
       button.classList.toggle('active', active); button.setAttribute('aria-pressed', active);
     });
-    this.$('[data-role="input-note"]').textContent = '切换讲解小问会采用题目对应单位；切换单位不换算数值。长×宽固定为包装底面，旋转视角不改变上盖用料。';
+    this.$('[data-role="input-note"]').textContent = '切换讲解内容保留尺寸和单位；切换单位不换算数值。长×宽固定为包装底面，旋转视角不改变上盖用料。';
     TeachingCuboid.drawNet(this.$('[data-role="net"]'), this.currentNet, unit, !perimeter && this.lidLayers === 2);
     this.$('[data-role="net-caption"]').textContent = perimeter ? '黄色实线是外边界，深色虚线是内部折痕。各矩形标注边长，单位同上。' : '六面展开图：浅黄色“上盖 × 2”表示上盖用料计两份，额外一层未作为第七个面加入折叠。';
     if (!perimeter && this.lidLayers === 1) this.$('[data-role="net-caption"]').textContent = '六面展开图：上盖按一层计算，各矩形标注边长，单位同上。';
-    this.$('[data-role="prompt"]').textContent = perimeter ? '先观察：哪些边留在外侧？哪种展开方式的内部折痕更短？' : compare ? `当前外盒 ${this.currentDims.map(f).join(' × ')} ${unit}。体积只变为原盒的2倍，哪种拼法最省纸板？` : '先算六个面的面积。双层上盖还需要多算哪一个面的面积？';
+    this.$('[data-role="prompt"]').textContent = perimeter ? '先观察：哪些边留在外侧？哪种展开方式的内部折痕更短？' : compare ? `当前外盒 ${this.currentDims.map(f).join(' × ')} ${unit}。体积只变为原盒的2倍，哪种拼法最省纸板？` : this.lidLayers === 2 ? '先算六个面的面积。双层上盖还需要多算哪一个面的面积？' : '上盖只有一层时，纸板面积与六面表面积有什么关系？';
     const formula = this.$('[data-role="formula"]'), result = this.$('[data-role="result"]');
     if (perimeter) {
       const net = this.currentNet;
@@ -130,14 +130,14 @@ class PackagingApplication {
       const [a, b, c] = this.currentDims, m = TeachingCuboid.measures(this.currentDims, this.lidLayers);
       formula.textContent = `① 六面表面积：2 × (${f(a)} × ${f(b)} + ${f(a)} × ${f(c)} + ${f(b)} × ${f(c)}) = ${f(m.surface)} ${unit}²\n② ${this.lidLayers === 2 ? `额外上盖：${f(a)} × ${f(b)} = ${f(m.extra)}` : '单层上盖：额外面积为 0'} ${unit}²\n③ 纸板面积：${f(m.surface)} + ${f(m.extra)} = ${f(m.paper)} ${unit}²`;
       result.textContent = `所需纸板：${f(m.paper)} ${unit}²`;
-      this.$('[data-role="explanation"]').textContent = compare ? '两盒拼装只把一个方向的长度变为2倍，并不是长、宽、高一起翻倍。比较时还要计算额外上盖，不能只比较六面表面积。' : '双层上盖纸板面积 = 六面表面积 + 长×宽。按题目理想化计算，不另计粘贴边和裁剪损耗。';
+      this.$('[data-role="explanation"]').textContent = compare ? '两盒拼装只把一个方向的长度变为2倍，并不是长、宽、高一起翻倍。比较时还要计算额外上盖，不能只比较六面表面积。' : `${this.lidLayers === 2 ? '双层上盖纸板面积 = 六面表面积 + 长×宽。' : '单层上盖纸板面积 = 六面表面积。'}按理想化模型计算，不另计粘贴边和裁剪损耗。`;
     }
     this.renderComparison(compare, f, unit);
     this.drawSolid();
   }
   renderComparison(visible, f, unit) {
     const host = this.$('[data-role="comparison"]'); host.hidden = !visible; host.replaceChildren(); if (!visible) return;
-    const rows = PackagingLesson.methods.map(method => {
+    const rows = PackagingConfig.methods.map(method => {
       const dims = this.dims.map((v, i) => i === method.axis ? v * 2 : v);
       return { ...method, dims, ...TeachingCuboid.measures(dims, this.lidLayers) };
     });

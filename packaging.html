@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>包装盒应用 · 空间几何实验室</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/lab-modules.css">
+  <link rel="stylesheet" href="css/navigation.css">
+  <link rel="stylesheet" href="css/application-panels.css">
+</head>
+<body>
+  <header class="header-bar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>空间几何实验室</h1>
+        <p>折一折、搭一搭、切一切，理解立体图形</p>
+      </div>
+    </div>
+
+    <!-- 模块切换导航 -->
+    <nav class="nav-tabs">
+      <div class="nav-module-group">
+        <a class="tab-btn active" href="index.html#unfold"><span>📐 展开与折叠</span></a>
+        <details class="nav-submenu">
+          <summary aria-label="展开与折叠二级菜单">▾</summary>
+          <div class="nav-submenu-links">
+            <a href="index.html#unfold">通用展开与折叠</a>
+            <a href="packaging.html" aria-current="page">包装盒应用</a>
+          </div>
+        </details>
+      </div>
+      <a class="tab-btn" href="index.html#views"><span>🧊 方块搭建与观察</span></a>
+      <a class="tab-btn" href="index.html#section"><span>🔶 切开立体看截面</span></a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="btn-secondary" id="btn-fullscreen" title="全屏沉浸式演示">
+        <span>⛶ 全屏演示</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <section class="tab-panel active" id="panel-packaging">
+      <h2 class="application-page-title">包装盒应用</h2>
+      <p class="learning-note">展开与折叠 / 包装盒应用</p>
+      <div class="panel-card teaching-application" data-teaching-application="packaging"></div>
+    </section>
+  </main>
+  <script src="lib/three.min.js"></script>
+  <script src="lib/OrbitControls.js"></script>
+  <script src="js/lab-common.js"></script>
+  <script src="js/application-panels.js"></script>
+  <script src="js/teaching-cuboid.js"></script>
+  <script src="js/application-packaging.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/application-page.js"></script>
+</body>
+</html>

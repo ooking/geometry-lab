@@ -3,7 +3,7 @@ window.TeachingApplications = (() => {
   const factories = new Map(), instances = new Map();
   let activeWorkspace = null;
   function sync(host, record) {
-    const active = host.closest('.tab-panel')?.id === `panel-${activeWorkspace}` && host.open && !document.hidden;
+    const active = host.closest('.tab-panel')?.id === `panel-${activeWorkspace}` && (host.tagName !== 'DETAILS' || host.open) && !document.hidden;
     if (active && !record.instance) record.instance = factories.get(host.dataset.teachingApplication)(host);
     record.instance?.setActive(active);
   }
