@@ -29,7 +29,7 @@ class PackagingApplication {
       <div class="btn-group" data-role="steps" aria-label="选择讲解内容"></div>
       <div class="packaging-grid">
         <div class="packaging-visuals">
-          <div class="packaging-viewport" data-role="viewport"><span class="packaging-view-tip">拖动旋转 · 滚轮缩放 · 蓝线表示两盒分界</span></div>
+          <div class="packaging-viewport" data-role="viewport"><span class="packaging-view-tip">左键旋转 · 右键平移 · 滚轮缩放 · 蓝线表示两盒分界</span></div>
           <label class="packaging-progress">展开 ← <input data-role="progress" type="range" min="0" max="100" value="100" aria-label="包装盒整体折叠进度"> → 闭合</label>
           <p class="learning-note">整体折叠用于观察面与面的连接，中途可能相交。立体展示六面外壳；双层上盖通过右侧面积计算说明。</p>
           <div class="packaging-net" data-role="net"></div>

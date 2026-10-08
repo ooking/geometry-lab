@@ -577,9 +577,8 @@
   font-weight: bold;
 }
 
-#unfold-canvas-2d-box { touch-action: none; }
+#unfold-canvas-2d-box { touch-action: pan-y; }
 .topview-matrix-cell { font: inherit; color: var(--text-main); width: 100%; }
-.canvas-2d-btn { min-width: 36px; min-height: 36px; }
 .net-rect-face span { white-space: nowrap; font-size: 0.7rem !important; }
 #faces-legend-container { font-size: 0.75rem; line-height: 1.6; }
 

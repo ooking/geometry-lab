@@ -827,7 +827,7 @@ class UnfoldLab {
     });
     let drag = null;
     this.canvas2dBox.addEventListener('pointerdown', event => {
-      if (event.button !== 0 || event.target.closest('.canvas-2d-toolbar') || drag) return;
+      if (event.button !== 0 || drag) return;
       drag = { id: event.pointerId, x: event.clientX, y: event.clientY, panX: this.panX, panY: this.panY, moved: false };
       this.suppressFaceClick = false;
     });
@@ -843,12 +843,6 @@ class UnfoldLab {
     const endDrag = event => { if (drag?.id === event.pointerId) drag = null; };
     window.addEventListener('pointerup', endDrag); window.addEventListener('pointercancel', endDrag);
     this.canvas2dBox.addEventListener('lostpointercapture', endDrag);
-    this.canvas2dBox.addEventListener('wheel', event => {
-      event.preventDefault(); this.zoom = Math.max(0.1, Math.min(3, this.zoom + (event.deltaY > 0 ? -0.1 : 0.1))); this.updateTransform2D();
-    }, { passive: false });
-    document.getElementById('btn-2d-zoomin').addEventListener('click', () => { this.zoom = Math.min(3, this.zoom + 0.15); this.updateTransform2D(); });
-    document.getElementById('btn-2d-zoomout').addEventListener('click', () => { this.zoom = Math.max(0.1, this.zoom - 0.15); this.updateTransform2D(); });
-    document.getElementById('btn-2d-reset').addEventListener('click', () => this.reset2DView());
     document.getElementById('btn-unfold-reset-cam').addEventListener('click', () => this.resetCamera());
     document.getElementById('btn-unfold-top-cam').addEventListener('click', () => this.resetCamera(true));
     document.getElementById('btn-unfold-toggle').addEventListener('click', () => this.toggleAnimation());
