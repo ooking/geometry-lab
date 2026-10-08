@@ -593,11 +593,60 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* 底栏 */
 .footer-bar {
   text-align: center;
-  padding: 1rem;
-  font-size: 0.75rem;
+  padding: 1.25rem 1rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   margin-top: auto;
+  background: rgba(15, 20, 28, 0.4);
+}
+
+.footer-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer-tagline {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.footer-links {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  transition: color 0.15s ease;
+}
+
+.footer-link:hover {
+  color: var(--accent-blue);
+}
+
+.footer-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.footer-divider {
+  color: var(--text-dim);
+  user-select: none;
 }
 
 /* Teaching controls remain usable on a projector, tablet, and keyboard. */
