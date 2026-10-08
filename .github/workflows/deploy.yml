@@ -1,0 +1,39 @@
+# 手动发布 geometry-lab 到 Cloudflare Pages
+#
+# 触发方式：只在 GitHub 仓库页 -> Actions -> "Deploy to Cloudflare Pages"
+#          -> "Run workflow" 手动点一次发布一次。push 代码不会自动发布。
+#
+# 前置：在仓库 Settings -> Secrets and variables -> Actions 里加两个 secret：
+#   CLOUDFLARE_API_TOKEN   Cloudflare API Token（权限：Account / Cloudflare Pages / Edit）
+#   CLOUDFLARE_ACCOUNT_ID  Cloudflare Account ID
+name: Deploy to Cloudflare Pages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    name: Deploy to Cloudflare Pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare static assets
+        run: |
+          mkdir -p dist
+          # 只导出 git 跟踪的文件（天然排除 .git），再去掉 .github
+          git archive HEAD | tar -x -C dist
+          rm -rf dist/.github
+          ls dist
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=geometry-lab
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
